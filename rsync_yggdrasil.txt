@@ -1,0 +1,1 @@
+rsync --exclude 'spawn/*' --exclude '.DS_Store' --exclude 'tmux/*' --exclude 'wandb/*' --exclude 'data/*' --exclude 'pyrightconfig.json' geo-pytorch-prod ygg:~/Code/
