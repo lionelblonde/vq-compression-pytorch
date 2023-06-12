@@ -27,13 +27,12 @@ DEBUG = bool(debug_lvl >= 2)
 
 class Compressor(object):
 
-    def __init__(self, device, hps, eval_every=50):
+    def __init__(self, device, hps):
         self.device = device
         self.hps = hps
 
         self.iters_so_far = 0
         self.epochs_so_far = 0
-        self.eval_every = eval_every
 
         if self.hps.clip_norm <= 0:
             logger.info(f"clip_norm={self.hps.clip_norm} <= 0, hence disabled.")
@@ -104,7 +103,7 @@ class Compressor(object):
 
             # 2|2>>>> evaluate
 
-            if self.iters_so_far % self.eval_every == 0:
+            if self.iters_so_far % self.hps.eval_every == 0:
 
                 self.model.eval()
 

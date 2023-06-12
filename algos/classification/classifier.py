@@ -7,6 +7,7 @@ from tqdm import tqdm
 import wandb
 
 import numpy as np
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import torch
 import torch.nn as nn
 from torch.nn.utils import clip_grad as cg
@@ -28,14 +29,12 @@ DEBUG = bool(debug_lvl >= 2)
 
 class Classifier(object):
 
-    def __init__(self, device, hps, eval_every=50):
+    def __init__(self, device, hps):
         self.device = device
         self.hps = hps
 
         self.iters_so_far = 0
         self.epochs_so_far = 0
-
-        self.eval_every = eval_every
 
         if self.hps.clip_norm <= 0:
             logger.info(f"clip_norm={self.hps.clip_norm} <= 0, hence disabled.")
@@ -86,8 +85,8 @@ class Classifier(object):
 
     def train(self, train_dataloader, val_dataloader):
 
-        samples = 0
-        correct = 0
+        # samples = 0
+        # correct = 0
 
         agg_iterable = zip(tqdm(train_dataloader), itertools.chain.from_iterable(itertools.repeat(val_dataloader)))
 
@@ -115,43 +114,39 @@ class Classifier(object):
 
             # 2|2>>>> evaluate
 
-            if self.iters_so_far % self.eval_every == 0:
+            if self.iters_so_far % self.hps.eval_every == 0:
 
                 self.model.eval()
 
                 v_x, v_true_y = v_x.to(self.device), v_true_y.to(self.device)
                 v_metrics, _, v_pred_y = self.compute_loss(v_x, v_true_y)
 
-                # accuracy
-
-                samples_this_iter = v_true_y.size(0)
-
-                samples += samples_this_iter
-
-                quantized_v_pred_y = (v_pred_y > 0.5).float()
-                correct_this_iter = (quantized_v_pred_y == v_true_y).sum().item()
-                correct += correct_this_iter
-
-                accuracy_this_iter = correct_this_iter / samples_this_iter
-                v_metrics.update({'accuracy': accuracy_this_iter})
-
-                # 3|3>>>> wrap up
+                # compute evaluation scores
+                v_pred_y = (v_pred_y > 0.5).float()
+                v_pred_y, v_true_y = v_pred_y.detach().cpu().numpy(), v_true_y.detach().cpu().numpy()
+                accuracy = accuracy_score(v_true_y, v_pred_y)
+                precision = precision_score(v_true_y, v_pred_y, average='samples')
+                recall = recall_score(v_true_y, v_pred_y, average='samples')
+                f1 = f1_score(v_true_y, v_pred_y, average='samples')
+                v_metrics.update({'accuracy': accuracy,
+                                  'precision': precision,
+                                  'recall': recall,
+                                  'f1': f1})
 
                 self.send_to_dash(v_metrics, mode='val')
                 del v_metrics
+
+                self.model.train()
+
+            # 3|3>>>> wrap up
 
             if DEBUG:
                 last_lr = self.scheduler.get_last_lr()[0]
                 logger.info(f"lr ={last_lr} after {self.iters_so_far} gradient steps")
 
-            self.model.train()
-
             self.iters_so_far += 1
 
         self.epochs_so_far += 1
-
-        accuracy_this_epoch = correct / samples
-        logger.info(f"accuracy at the end of epoch {self.epochs_so_far} ={accuracy_this_epoch}")
 
     def test(self, dataloader):
 

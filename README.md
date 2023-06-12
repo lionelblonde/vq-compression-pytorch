@@ -9,6 +9,7 @@ Install the following packages in your Python environment:
 + tqdm
 + rasterio
 + numpy
++ scikit-learn
 + pytorch, torchvision (pure CPU)
 + pytorch torchvision pytorch-cuda=11.8 -c pytorch -c nvidia (GPU support)
 + wandb
