@@ -25,12 +25,11 @@ def get_dataloader(
     split_path: str,
     batch_size: int,
     train_stage: bool = False,
-    val_stage: bool = False,
-    test_or_inference_stage: bool = False,
     num_transforms: int = 2,
     with_labels: bool = False,
     memory: bool = False,
-    shuffle: bool = True,
+    truncate_at: int = None,
+    shuffle: bool = False,
 ):
 
     if dataset_handle == 'bigearthnet':
@@ -40,12 +39,11 @@ def get_dataloader(
                 split_path=split_path,
                 image_size=120,
                 train_stage=train_stage,
-                val_stage=val_stage,
-                test_or_inference_stage=test_or_inference_stage,
                 num_transforms=num_transforms,
                 bands=BigEarthNetDataset.all_bands(),
                 with_labels=with_labels,
                 memory=memory,
+                truncate_at=truncate_at,
             ),
             batch_size=batch_size,
             num_workers=4,

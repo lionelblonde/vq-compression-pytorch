@@ -53,7 +53,7 @@ def agg_argparser():
 
     # model architecture
     parser.add_argument("--backbone", type=str, default=None)
-    boolean_flag(parser, "pretrained_w_imagenet", default=True)
+    boolean_flag(parser, "pretrained_w_imagenet", default=False)
     parser.add_argument("--fc_hid_dim", type=int, default=128)
 
     # >>>> simclr
@@ -66,7 +66,7 @@ def agg_argparser():
     # <<<<<<<<
     parser.add_argument("--fc_out_dim", type=int, default=64)
     # fine-tuning or linear probing
-    boolean_flag(parser, "linear_probe", default=True)
+    boolean_flag(parser, "linear_probe", default=False)
     boolean_flag(parser, "fine_tuning", default=False)
     parser.add_argument("--finetune_probe_epochs", type=int, default=10)  # same as SimCLR
     parser.add_argument("--finetune_probe_batch_size", type=int, default=256)

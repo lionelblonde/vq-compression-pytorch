@@ -11,10 +11,9 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
 
-from helpers import logger
-from helpers.dataloader_utils import read_path_from_file, read_list_from_file, save2file
+from helpers.dataloader_utils import read_from_file, read_path_from_file, read_list_from_file, save2file
 from helpers.dataloader_utils.bigearthnet_utils.constants import BAND_NAMES, RGB_BANDS_NAMES, LABELS
-from helpers.dataloader_utils.bigearthnet_utils.constants import BANDS_10M, BANDS_20M
+from helpers.dataloader_utils.bigearthnet_utils.constants import BANDS_10M, BANDS_20M, BAND_STATS
 from helpers.dataloader_utils.bigearthnet_utils.transform_util import TransformsToolkit
 
 
@@ -32,19 +31,15 @@ class BigEarthNetDataset(Dataset):
         split_path: str,
         image_size: int = 120,
         train_stage: bool = False,
-        val_stage: bool = False,
-        test_or_inference_stage: bool = False,
         num_transforms: int = 2,
         with_labels: bool = False,
         bands: List[str] = RGB_BANDS_NAMES,  # default: bands corresponding to RGB
         memory: bool = False,
+        truncate_at: int = None,
     ):
         """`number` is the number of patches to read (-1 for all).
         `memory` indicate if the data should be first put into memory or read on the fly.
         """
-        assert sum(int(_) for _ in [
-            train_stage, val_stage, test_or_inference_stage,
-        ]) == 1, "the stages' bools must all be False but ONLY one"
         assert num_transforms in [1, 2] and isinstance(num_transforms, int)
 
         if num_transforms == 1:
@@ -53,19 +48,22 @@ class BigEarthNetDataset(Dataset):
             # We have checked above that only one of the condition is true
             if train_stage:
                 self.transform = self.train_transform(image_size)
-            elif val_stage:
-                self.transform = self.val_transform(image_size)
-            else:  # test_or_inference_stage == True
-                self.transform = self.val_transform(image_size)  # FIXME: make this block more elegant!?
+            else:
+                self.transform = self.eval_transform(image_size)
 
         self.split_path = split_path
         self.with_labels = with_labels
         self.bands = bands
         self.memory = memory
 
+        assert 0 < truncate_at <= 100
+        tot_len = len(read_from_file(self.split_path, data_path))
+        self.truncate_at = int((truncate_at / 100.) * tot_len)  # transform the % to keep into the # of samples to keep
+        print(self.truncate_at, tot_len, f"{int(self.truncate_at) / tot_len * 100}%")  # sanity check
+
         self.verify_bands(self.bands)
 
-        self.folder_path_list = np.array(read_path_from_file(self.split_path, parent=data_path))
+        self.folder_path_list = np.array(read_path_from_file(self.split_path, data_path, self.truncate_at))
         self.data_point_ids = np.array(self.get_data_point_ids())
 
         if self.memory:
@@ -89,8 +87,8 @@ class BigEarthNetDataset(Dataset):
     def train_transform(self, image_size: int) -> transforms.Compose:
         return TransformsToolkit.transform_bigearthnet_train(image_size)
 
-    def val_transform(self, image_size: int) -> transforms.Compose:
-        return TransformsToolkit.transform_bigearthnet_val(image_size)
+    def eval_transform(self, image_size: int) -> transforms.Compose:
+        return TransformsToolkit.transform_bigearthnet_eval(image_size)
 
     def verify_bands(self, bands: List[str]) -> None:
         for band in bands:
@@ -102,32 +100,36 @@ class BigEarthNetDataset(Dataset):
 
     def get_labels_as_multi_hot_vector(self) -> List[List[int]]:
         """Get the true labels as a multi-hot vector"""
-        split_path = Path(self.split_path)
-        dataset_split_folder = split_path.parent.absolute()
-        regime = split_path.name.split('.')[0]
-        labels_file_path = dataset_split_folder.joinpath(f"{regime}_labels.txt")
+        where_splits = Path(self.split_path).parent.absolute()
+
+        labels_file_path = where_splits.joinpath('labels')
+        labels_file_path.mkdir(exist_ok=True, parents=True)
+        labels_file_path = labels_file_path.joinpath(Path(self.split_path).name)
+        print("1", "labels from", labels_file_path)
+
         if labels_file_path.exists():
-            # Read the labels from file, and return them
-            logger.info(f"({regime} set) -> labels file exists already")
-            partial_path = str(split_path).split('.txt')[0]
-            logger.info(f"({regime} set) loading labels FROM disk @ {labels_file_path}")
-            labels = read_list_from_file(f"{partial_path}_labels.txt")
+            # read the labels from file, and return them
+            labels = read_list_from_file(labels_file_path, truncate_at=self.truncate_at)
+            print("2", "# of labels", len(labels))
+
         else:
-            # Create the labels, save them to file, and return them
-            logger.info(f"({regime} set) -> labels file does not exist")
+            # create the labels, save them to file, and return them
             labels = []
             for idx, path in enumerate(tqdm(self.folder_path_list)):
                 labels_raw = load_json(
                     path.joinpath(f"{self.data_point_ids[idx]}_labels_metadata.json")
                 )["labels"]
                 labels_instance = [0] * self.num_classes()
-                # For every ON label of the instance, set the index in the multi-hot ON
+                # for every ON label of the instance, set the index in the multi-hot ON
                 for label in labels_raw:
                     assert label in LABELS, f"{label} is not a valid label."
-                    labels_instance[LABELS.index(label)] = 1
+                    idx = LABELS.index(label)
+
+                    labels_instance[idx] = 1
                 labels.append(labels_instance)
-            logger.info(f"({regime} set) saving labels TO disk @ {labels_file_path}")
+            # save to file
             save2file(labels_file_path, labels)
+
         return labels
 
     def read_data(
@@ -149,11 +151,20 @@ class BigEarthNetDataset(Dataset):
                         band_data = cv2.resize(band_data, dsize=(120, 120), interpolation=cv2.INTER_CUBIC)
                     # We have already ignored the 60M ones, and we keep the 10M ones intact
 
+                    # Normalize using the stats provided by TUB
+                    band_data = ((band_data - BAND_STATS['mean'][band_name]) /
+                                 BAND_STATS['std'][band_name]).astype(np.float32)
+
                     bands_data.append(band_data)
+
                 band_file.close()
 
             bands_data = np.stack(bands_data)
-            bands_data = self.normalize_bands(bands_data)
+
+            # normalize the bands
+            # bands_data = self.normalize_bands(bands_data)  # between 0 and 255
+            # bands_data = self.normalize_bands(bands_data, desired_max=1)  # between 0 and 1
+
             data.append(bands_data)
         data_np = np.array(data)
         del data
@@ -162,26 +173,26 @@ class BigEarthNetDataset(Dataset):
         else:
             return torch.Tensor(data_np)
 
-    def normalize_bands(
-        self,
-        bands_data: np.ndarray,
-        desired_max: int = 255,
-        band_min: int = 0,
-        band_max: int = 10000,
-        normalize_per_band: bool = True,
-    ) -> np.ndarray:
-        bands_data = bands_data.astype(float)
-        if normalize_per_band:
-            for band_idx in range(bands_data.shape[0]):
-                np.clip(bands_data[band_idx], band_min, band_max)
-                bands_data[band_idx] = (
-                    bands_data[band_idx] / bands_data[band_idx].max()
-                ) * desired_max
+    # def normalize_bands(
+    #     self,
+    #     bands_data: np.ndarray,
+    #     desired_max: int = 255,
+    #     band_min: int = 0,
+    #     band_max: int = 10000,
+    #     normalize_per_band: bool = True,
+    # ) -> np.ndarray:
+    #     bands_data = bands_data.astype(float)
+    #     if normalize_per_band:
+    #         for band_idx in range(bands_data.shape[0]):
+    #             np.clip(bands_data[band_idx], band_min, band_max)
+    #             bands_data[band_idx] = (
+    #                 bands_data[band_idx] / bands_data[band_idx].max()
+    #             ) * desired_max
 
-        else:
-            np.clip(bands_data, band_min, band_max)
-            bands_data = (bands_data / bands_data.max()) * desired_max
-        return bands_data
+    #     else:
+    #         np.clip(bands_data, band_min, band_max)
+    #         bands_data = (bands_data / bands_data.max()) * desired_max
+    #     return bands_data
 
     def __len__(self) -> int:
         """Returns number of instances in dataset."""

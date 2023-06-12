@@ -95,7 +95,8 @@ LABELS = [
     "Sea and ocean",
 ]
 
-# Not used as of now, the normalization is done programmatically
+# values provided by TUB, at the repository:
+# https://git.tu-berlin.de/rsim/bigearthnet-models-tf/-/tree/master/models
 BAND_STATS = {
     "mean": {
         "B02": 429.9430203,

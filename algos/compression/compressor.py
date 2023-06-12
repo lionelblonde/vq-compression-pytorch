@@ -27,7 +27,7 @@ DEBUG = bool(debug_lvl >= 2)
 
 class Compressor(object):
 
-    def __init__(self, device, hps, eval_every=100):
+    def __init__(self, device, hps, eval_every=50):
         self.device = device
         self.hps = hps
 
@@ -80,7 +80,7 @@ class Compressor(object):
             wandb_table = wandb.Table(data=table, columns=["c_idx", "usage(c)"])
             wandb.log({f"{mode}/usage_plot": wandb_table})
 
-    def train(self, train_dataloader, val_dataloader, fire_escape=np.inf):
+    def train(self, train_dataloader, val_dataloader):
 
         agg_iterable = zip(tqdm(train_dataloader), itertools.cycle(val_dataloader))
         for i, (t_x, v_x) in enumerate(agg_iterable):
@@ -104,7 +104,7 @@ class Compressor(object):
 
             # 2|2>>>> evaluate
 
-            if self.iters_so_far%self.eval_every==0:
+            if self.iters_so_far % self.eval_every == 0:
 
                 self.model.eval()
 

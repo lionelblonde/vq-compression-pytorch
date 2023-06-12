@@ -16,12 +16,12 @@ class TransformsToolkit(object):
             transforms.RandomVerticalFlip(p=0.5),
             # Randomly change the brightness, contrast, saturation and hue of an image
             transforms.ColorJitter(brightness=0., contrast=0., saturation=0., hue=0.),
-            # Crop a random portion of image and resize it to a given size
-            transforms.RandomResizedCrop(image_size, interpolation=im.BICUBIC),
+            # Blurs image with randomly chosen Gaussian blur
+            transforms.GaussianBlur(kernel_size=int(0.1 * image_size), sigma=(0.1, 2.0)),
         ])
 
     @staticmethod
-    def transform_bigearthnet_val(image_size):
+    def transform_bigearthnet_eval(image_size):
         """Same as above: trying to make sense for satellite images"""
         return transforms.Compose([
             # Resize the input image to the given size

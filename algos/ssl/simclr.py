@@ -29,7 +29,7 @@ DEBUG = bool(debug_lvl >= 2)
 
 class SimCLR(object):
 
-    def __init__(self, device, hps, eval_every=100, new_head=False):
+    def __init__(self, device, hps, eval_every=50, new_head=False):
         self.device = device
         self.hps = hps
 
@@ -172,7 +172,7 @@ class SimCLR(object):
         # By this design, the resulting network has the exact same architecture as the classifier model!
         # they are therefore directly comparable!
 
-        self.new_criterion = nn.CrossEntropyLoss().to(self.device)
+        self.new_criterion = nn.BCEWithLogitsLoss().to(self.device)
 
         if self.hps.linear_probe:
             self.new_opt = torch.optim.Adam(

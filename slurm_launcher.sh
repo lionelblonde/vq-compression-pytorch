@@ -4,7 +4,7 @@
 export DATASET_DIR=/share/users/${USER:0:1}/${USER}
 
 python spawner.py \
-    --config configs/classification/classifier.yaml \
+    --config configs/classification/classifier_fp16.yaml \
     --conda_env geocuda \
     --deployment slurm \
     --num_seeds 2 \

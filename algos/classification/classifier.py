@@ -15,7 +15,7 @@ from torch.cuda.amp import autocast_mode as am
 
 from helpers import logger
 from helpers.console_util import log_module_info
-from algos.classification.models import ClassifierModel
+from algos.classification.models import PaperClassifierModel
 
 
 debug_lvl = os.environ.get('DEBUG_LVL', 0)
@@ -28,7 +28,7 @@ DEBUG = bool(debug_lvl >= 2)
 
 class Classifier(object):
 
-    def __init__(self, device, hps, eval_every=100):
+    def __init__(self, device, hps, eval_every=50):
         self.device = device
         self.hps = hps
 
@@ -41,14 +41,18 @@ class Classifier(object):
             logger.info(f"clip_norm={self.hps.clip_norm} <= 0, hence disabled.")
 
         # Create nets
-        self.model = ClassifierModel(
-            backbone_name=self.hps.backbone,
-            backbone_pretrained=self.hps.pretrained_w_imagenet,
+        self.model = PaperClassifierModel(
+            fc_hid_dim=self.hps.fc_hid_dim,
             fc_out_dim=self.hps.num_classes,
         ).to(self.device)
+        # self.model = ClassifierModel(
+        #     backbone_name=self.hps.backbone,
+        #     backbone_pretrained=self.hps.pretrained_w_imagenet,
+        #     fc_out_dim=self.hps.num_classes,
+        # ).to(self.device)
 
         # Create criterion
-        self.criterion = nn.CrossEntropyLoss().to(self.device)
+        self.criterion = nn.BCEWithLogitsLoss().to(self.device)
 
         # Set up the optimizer
         self.opt = torch.optim.Adam(
@@ -100,7 +104,7 @@ class Classifier(object):
             scaled_loss = self.scaler.scale(t_loss)
             scaled_loss.backward()
             if self.hps.clip_norm > 0:
-                cg.clip_grad_norm(self.model.parameters(), self.hps.clip_norm)
+                cg.clip_grad_norm_(self.model.parameters(), self.hps.clip_norm)
             self.scaler.step(self.opt)
             self.scaler.update()
             # Update lr

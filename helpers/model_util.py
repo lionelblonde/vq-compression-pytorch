@@ -1,4 +1,41 @@
+from copy import deepcopy
+
+import torch.nn as nn
 import torchvision
+
+
+def init(weight_scale=1., constant_bias=0.):
+    """Perform orthogonal initialization"""
+
+    def _init(m):
+
+        if (isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear)):
+            nn.init.orthogonal_(m.weight, gain=weight_scale)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, constant_bias)
+        elif (isinstance(m, nn.BatchNorm2d) or
+              isinstance(m, nn.LayerNorm)):
+            nn.init.ones_(m.weight)
+            if m.bias is not None:
+                nn.init.zeros_(m.bias)
+
+    return _init
+
+
+def conv_to_fc(x, in_width, in_height):
+    assert (isinstance(x, nn.Sequential) or
+           isinstance(x, nn.Module))
+    specs = [[list(i) for i in [mod.kernel_size,
+              mod.stride,
+              mod.padding]]
+             for mod in x.modules()
+             if isinstance(mod, nn.Conv2d)]
+    acc = [deepcopy(in_width),
+           deepcopy(in_height)]
+    for e in specs:
+        for i, (k, s, p) in enumerate(zip(*e)):
+            acc[i] = ((acc[i] - k + (2 * p)) // s) + 1
+    return acc[0] * acc[1]
 
 
 class ResnetToolkit(object):

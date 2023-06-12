@@ -13,8 +13,8 @@ wandb_project: 'psyduck'
 # dataset
 dataset_handle: 'bigearthnet'
 # data path is handled by the spawner w/ an environ variable
-val_split: 0.15
-test_split: 0.15
+val_split: 0.25
+test_split: 0.25
 
 # training
 epochs: 100
@@ -24,7 +24,7 @@ save_freq: 1
 # opt
 lr: 1e-4
 wd: 0.
-clip_norm: 0.
+clip_norm: 0
 
 # algo
 algo_handle: 'bigearthnet_compressor'
