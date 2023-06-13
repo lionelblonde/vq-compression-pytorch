@@ -209,9 +209,6 @@ class SimCLR(object):
         # from here onwards, semantically a priori identical to the classifier
         # VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVvvVV
 
-        samples = 0
-        correct = 0
-
         agg_iterable = zip(tqdm(train_dataloader), itertools.chain.from_iterable(itertools.repeat(val_dataloader)))
 
         for i, ((t_x, t_true_y), (v_x, v_true_y)) in enumerate(agg_iterable):
@@ -268,9 +265,6 @@ class SimCLR(object):
 
         self.epochs_so_far += 1
 
-        accuracy_this_epoch = correct / samples
-        logger.info(f"accuracy at the end of epoch {self.epochs_so_far} of finetuning/probing ={accuracy_this_epoch}")
-
     def test_finetuned_or_probed_model(self, dataloader):
         # the code that follows is identical whether we fine-tune or just train the probe
         # because the only thing that changes between the two is the new optimizer (cf. above)
@@ -282,31 +276,26 @@ class SimCLR(object):
 
         self.model.eval()
 
-        samples = 0
-        correct = 0
-
         for i, (x, true_y) in enumerate(tqdm(dataloader)):
 
-            # x = x[0]  # needed if the number of transforms is set to >1
-
             x, true_y = x.to(self.device), true_y.to(self.device)
-            metrics, _, pred_y = self.compute_classifier_loss(x, true_y)
+            metrics, _, pred_y = self.compute_loss(x, true_y)
 
-            # accuracy
-
-            samples_this_iter = true_y.size(0)
-            samples += samples_this_iter
-
-            quantized_pred_y = (pred_y > 0.5).float()
-            correct_this_iter = (quantized_pred_y == true_y).sum().item()
-            correct += correct_this_iter
-
-            accuracy_this_iter = correct_this_iter / samples_this_iter
-            metrics.update({'accuracy': accuracy_this_iter})
+            # compute evaluation scores
+            pred_y = (pred_y > 0.).long()
+            pred_y, true_y = pred_y.detach().cpu().numpy(), true_y.detach().cpu().numpy()
+            accuracy = accuracy_score(true_y, pred_y)
+            precision = precision_score(true_y, pred_y, average='samples')
+            recall = recall_score(true_y, pred_y, average='samples')
+            f1 = f1_score(true_y, pred_y, average='samples')
+            metrics.update({'accuracy': accuracy,
+                            'precision': precision,
+                            'recall': recall,
+                            'f1': f1})
 
             self.send_to_dash(metrics, mode=f"{special_key}-test")
+            del metrics
 
-        # /!\ training mode is turned back on
         self.model.train()
 
     def save(self, path, epochs_so_far):

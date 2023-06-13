@@ -72,7 +72,6 @@ def train(args):
         return algo_class_handle(
             device=device,
             hps=args,
-            eval_every=args.eval_every,
         )
 
     # Train

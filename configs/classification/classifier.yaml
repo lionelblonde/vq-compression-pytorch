@@ -18,11 +18,11 @@ test_split: 0.25
 
 # training
 epochs: 100
-batch_size: 1024
+batch_size: 512
 save_freq: 1
 
 # opt
-lr: 1e-3
+lr: 3e-4
 wd: 2e-5
 clip_norm: 0
 
@@ -31,5 +31,5 @@ algo_handle: 'bigearthnet_classifier'
 
 # model architecture
 backbone: 'resnet101'
-pretrained_w_imagenet: false
+pretrained_w_imagenet: true
 fc_hid_dim: 128

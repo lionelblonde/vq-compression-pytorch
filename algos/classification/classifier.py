@@ -7,7 +7,7 @@ from tqdm import tqdm
 import wandb
 
 import numpy as np
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+import sklearn.metrics as skm
 import torch
 import torch.nn as nn
 from torch.nn.utils import clip_grad as cg
@@ -16,7 +16,8 @@ from torch.cuda.amp import autocast_mode as am
 
 from helpers import logger
 from helpers.console_util import log_module_info
-from algos.classification.models import PaperClassifierModel
+from algos.classification.models import ClassifierModel
+# from algos.classification.models import PaperClassifierModel
 
 
 debug_lvl = os.environ.get('DEBUG_LVL', 0)
@@ -40,15 +41,15 @@ class Classifier(object):
             logger.info(f"clip_norm={self.hps.clip_norm} <= 0, hence disabled.")
 
         # Create nets
-        self.model = PaperClassifierModel(
-            fc_hid_dim=self.hps.fc_hid_dim,
-            fc_out_dim=self.hps.num_classes,
-        ).to(self.device)
-        # self.model = ClassifierModel(
-        #     backbone_name=self.hps.backbone,
-        #     backbone_pretrained=self.hps.pretrained_w_imagenet,
+        # self.model = PaperClassifierModel(
+        #     fc_hid_dim=self.hps.fc_hid_dim,
         #     fc_out_dim=self.hps.num_classes,
         # ).to(self.device)
+        self.model = ClassifierModel(
+            backbone_name=self.hps.backbone,
+            backbone_pretrained=self.hps.pretrained_w_imagenet,
+            fc_out_dim=self.hps.num_classes,
+        ).to(self.device)
 
         # Create criterion
         self.criterion = nn.BCEWithLogitsLoss().to(self.device)
@@ -107,7 +108,7 @@ class Classifier(object):
             self.scaler.step(self.opt)
             self.scaler.update()
             # Update lr
-            self.scheduler.step()
+            # self.scheduler.step()  # FIXME
 
             self.send_to_dash(t_metrics, mode='train')
             del t_metrics
@@ -122,16 +123,24 @@ class Classifier(object):
                 v_metrics, _, v_pred_y = self.compute_loss(v_x, v_true_y)
 
                 # compute evaluation scores
-                v_pred_y = (v_pred_y > 0.5).float()
+                v_pred_y = (v_pred_y > 0.).long()
                 v_pred_y, v_true_y = v_pred_y.detach().cpu().numpy(), v_true_y.detach().cpu().numpy()
-                accuracy = accuracy_score(v_true_y, v_pred_y)
-                precision = precision_score(v_true_y, v_pred_y, average='samples')
-                recall = recall_score(v_true_y, v_pred_y, average='samples')
-                f1 = f1_score(v_true_y, v_pred_y, average='samples')
+                accuracy = skm.accuracy_score(v_true_y, v_pred_y)
+                balanced_accuracy = skm.balanced_accuracy_score(v_true_y, v_pred_y)
+                zero_one_loss = skm.zero_one_loss(v_true_y, v_pred_y)
+                hamming_loss = skm.hamming_loss(v_true_y, v_pred_y)
+                precision = skm.precision_score(v_true_y, v_pred_y, average='samples')
+                recall = skm.recall_score(v_true_y, v_pred_y, average='samples')
+                f1 = skm.f1_score(v_true_y, v_pred_y, average='samples')
+                f2 = skm.fbeta_score(v_true_y, v_pred_y, beta=2., average='samples')
                 v_metrics.update({'accuracy': accuracy,
+                                  'balanced_accuracy': balanced_accuracy,
+                                  'zero_one_loss': zero_one_loss,
+                                  'hamming_loss': hamming_loss,
                                   'precision': precision,
                                   'recall': recall,
-                                  'f1': f1})
+                                  'f1': f1,
+                                  'f2': f2})
 
                 self.send_to_dash(v_metrics, mode='val')
                 del v_metrics
@@ -152,33 +161,35 @@ class Classifier(object):
 
         self.model.eval()
 
-        samples = 0
-        correct = 0
-
         for i, (x, true_y) in enumerate(tqdm(dataloader)):
 
             x, true_y = x.to(self.device), true_y.to(self.device)
             metrics, _, pred_y = self.compute_loss(x, true_y)
 
-            # accuracy
-
-            samples_this_iter = true_y.size(0)
-            samples += samples_this_iter
-
-            quantized_pred_y = (pred_y > 0.5).float()
-            correct_this_iter = (quantized_pred_y == true_y).sum().item()
-            correct += correct_this_iter
-
-            accuracy_this_iter = correct_this_iter / samples_this_iter
-            metrics.update({'accuracy': accuracy_this_iter})
+            # compute evaluation scores
+            pred_y = (pred_y > 0.).long()
+            pred_y, true_y = pred_y.detach().cpu().numpy(), true_y.detach().cpu().numpy()
+            accuracy = skm.accuracy_score(true_y, pred_y)
+            balanced_accuracy = skm.balanced_accuracy_score(true_y, pred_y)
+            zero_one_loss = skm.zero_one_loss(true_y, pred_y)
+            hamming_loss = skm.hamming_loss(true_y, pred_y)
+            precision = skm.precision_score(true_y, pred_y, average='samples')
+            recall = skm.recall_score(true_y, pred_y, average='samples')
+            f1 = skm.f1_score(true_y, pred_y, average='samples')
+            f2 = skm.fbeta_score(true_y, pred_y, beta=2., average='samples')
+            metrics.update({'accuracy': accuracy,
+                            'balanced_accuracy': balanced_accuracy,
+                            'zero_one_loss': zero_one_loss,
+                            'hamming_loss': hamming_loss,
+                            'precision': precision,
+                            'recall': recall,
+                            'f1': f1,
+                            'f2': f2})
 
             self.send_to_dash(metrics, mode='test')
+            del metrics
 
-        # /!\ training mode is turned back on
         self.model.train()
-
-        accuracy_this_epoch = correct / samples
-        logger.info(f"accuracy at the end of testing ={accuracy_this_epoch}")
 
     def save(self, path, epochs_so_far):
         model_dest_path = osp.join(path, f"model_{epochs_so_far}.tar")

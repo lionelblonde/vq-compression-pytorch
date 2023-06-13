@@ -235,7 +235,7 @@ class Spawner(object):
                                 f"#SBATCH --partition={self.partition}\n"
                                 f"#SBATCH --nodes={NUM_NODES}\n"
                                 f"#SBATCH --ntasks={NUM_WORKERS}\n"
-                                "#SBATCH --cpus-per-task=1\n"
+                                "#SBATCH --cpus-per-task=4\n"
                                 f"#SBATCH --time={self.duration}\n"
                                 f"#SBATCH --mem={self.memory}000\n"
                                 "#SBATCH --output=./out/run_%j.out\n")

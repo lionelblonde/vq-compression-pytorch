@@ -31,7 +31,7 @@ def agg_argparser():
     parser.add_argument("--data_path", type=str, help="path to folders with images to train on.")
     parser.add_argument("--val_split", type=float, default=0.15)
     parser.add_argument("--test_split", type=float, default=0.15)
-    parser.add_argument("--truncate_at", type=int, default=None, help="amount of data to keep")
+    parser.add_argument("--truncate_at", type=int, default=100, help="amount of data to keep in %")
     # training
     parser.add_argument("--epochs", type=int, default=100, help="number of epochs to train model")
     parser.add_argument("--batch_size", type=int, default=128, help="batch size for SSL")

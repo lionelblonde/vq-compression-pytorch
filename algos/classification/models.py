@@ -42,20 +42,20 @@ class PaperClassifierModel(nn.Module):
                 ('bn', nn.BatchNorm2d(32)),
                 ('nl', nn.ReLU()),
                 ('mp', nn.MaxPool2d(kernel_size=2)),
-                ('do', nn.Dropout(p=0.25)),
+                # ('do', nn.Dropout(p=0.25)),
             ]))),
             ('conv2d_block_2', nn.Sequential(OrderedDict([
                 ('conv2d', nn.Conv2d(32, 64, kernel_size=5, stride=1, padding=1)),
                 ('bn', nn.BatchNorm2d(64)),
                 ('nl', nn.ReLU()),
                 ('mp', nn.MaxPool2d(kernel_size=2)),
-                ('do', nn.Dropout(p=0.25)),
+                # ('do', nn.Dropout(p=0.25)),
             ]))),
             ('conv2d_block_3', nn.Sequential(OrderedDict([
                 ('conv2d', nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1)),
                 ('bn', nn.BatchNorm2d(64)),
                 ('nl', nn.ReLU()),
-                ('do', nn.Dropout(p=0.25)),
+                # ('do', nn.Dropout(p=0.25)),
             ]))),
         ]))
         # Assemble the fully-connected stack
@@ -63,7 +63,7 @@ class PaperClassifierModel(nn.Module):
             ('fc_block', nn.Sequential(OrderedDict([
                 ('fc', nn.Linear(50176, fc_hid_dim)),  # HAXX: found the number in error message
                 ('nl', nn.ReLU()),
-                ('do', nn.Dropout(p=0.5)),
+                # ('do', nn.Dropout(p=0.5)),
             ]))),
         ]))
         # Assemble the output classification head
