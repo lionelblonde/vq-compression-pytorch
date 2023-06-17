@@ -18,6 +18,9 @@ python main.py \
     --clip_norm 0 \
     --algo_handle 'bigearthnet_classifier' \
     --fc_hid_dim 128 \
+    --backbone resnet18 \
+    --pretrained_w_imagenet \
+    --fc_hid_dim 128 \
     --finetune_probe_epochs 50 \
     --finetune_probe_batch_size 256 \
     --task train \

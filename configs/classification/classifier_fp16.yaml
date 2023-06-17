@@ -18,7 +18,7 @@ test_split: 0.25
 
 # training
 epochs: 100
-batch_size: 512
+batch_size: 128
 save_freq: 1
 
 # opt
