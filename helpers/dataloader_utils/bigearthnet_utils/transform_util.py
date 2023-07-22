@@ -6,7 +6,7 @@ from torchvision.transforms import InterpolationMode
 class TransformsToolkit(object):
 
     @staticmethod
-    def transform_bigearthnet_train(image_size):
+    def transform_bigearthnet(image_size):
         """Trying to assemble a transform that makes sense for satellite images"""
         return transforms.Compose([
             # Rotate the image by angle
@@ -16,12 +16,6 @@ class TransformsToolkit(object):
             transforms.RandomVerticalFlip(p=0.5),
             # Blurs image with randomly chosen Gaussian blur
             transforms.GaussianBlur(kernel_size=13)  # default for sigma is: sigma=(0.1, 2.0)
-        ])
-
-    @staticmethod
-    def transform_bigearthnet_eval(image_size):
-        """Same as above: trying to make sense for satellite images"""
-        return transforms.Compose([
         ])
 
     @staticmethod

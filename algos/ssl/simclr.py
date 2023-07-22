@@ -90,7 +90,7 @@ class SimCLR(object):
         wandb_dict['epoch'] = self.epochs_so_far
         wandb.log(wandb_dict, step=self.iters_so_far)
 
-    def train(self, train_dataloader, val_dataloader):
+    def train(self, train_dataloader, knn_dataloader, val_dataloader):
 
         acc_grad_steps = 8  # TODO: make this a hp
 
@@ -100,9 +100,9 @@ class SimCLR(object):
             strict=False,
         )
 
-        for i, ((t_x, _), (v_x, _)) in enumerate(agg_iterable):
+        for i, ((t_x, _), (v_x, v_true_y)) in enumerate(agg_iterable):
 
-            t_x_i, t_x_j = [e.squeeze() for e in torch.tensor_split(t_x, 2, dim=1)]
+            t_x_i, t_x_j = [e.squeeze() for e in torch.tensor_split(t_x, 2, dim=1)]  # unpack
 
             if self.hps.cuda:
                 t_x_i = t_x_i.pin_memory().to(self.device, non_blocking=True)
@@ -137,18 +137,21 @@ class SimCLR(object):
 
                 self.model.eval()
 
-                v_x_i, v_x_j = [e.squeeze() for e in torch.tensor_split(v_x, 2, dim=1)]
+                # TODO: build the feature bank here
 
-                if self.hps.cuda:
-                    v_x_i = v_x_i.pin_memory().to(self.device, non_blocking=True)
-                    v_x_j = v_x_j.pin_memory().to(self.device, non_blocking=True)
-                else:
-                    v_x_i, v_x_j = v_x_i.to(self.device), v_x_j.to(self.device)
 
-                v_metrics, _ = self.compute_loss(v_x_i, v_x_j)
-
-                self.send_to_dash(v_metrics, mode='val')
-                del v_metrics
+                # v_x_i, v_x_j = [e.squeeze() for e in torch.tensor_split(v_x, 2, dim=1)]
+                #
+                # if self.hps.cuda:
+                #     v_x_i = v_x_i.pin_memory().to(self.device, non_blocking=True)
+                #     v_x_j = v_x_j.pin_memory().to(self.device, non_blocking=True)
+                # else:
+                #     v_x_i, v_x_j = v_x_i.to(self.device), v_x_j.to(self.device)
+                #
+                # v_metrics, _ = self.compute_loss(v_x_i, v_x_j)
+                #
+                # self.send_to_dash(v_metrics, mode='val')
+                # del v_metrics
 
                 self.model.train()
 

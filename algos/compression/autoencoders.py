@@ -47,6 +47,6 @@ class VectorQuantizationAutoEncoder(nn.Module):
         # Create a table containing the estimated codebook usage
         normalized_codex = nn.functional.softmax(self.histogram.thetas, dim=0)  # only one dim anyway
         indices_of_codex = list(range(len(normalized_codex)))
-        table = [[c, p.item()] for c, p in zip(indices_of_codex, normalized_codex)]
+        table = [[c, p.item()] for c, p in zip(indices_of_codex, normalized_codex, strict=True)]
 
         return losses, table

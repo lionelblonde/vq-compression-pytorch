@@ -148,14 +148,14 @@ class Spawner(object):
             hpmap.update({'truncate_at': self.config['truncate_at']})
 
         algo_handle = hpmap['algo_handle']
-        if algo_handle == 'bigearthnet_classifier':
+        if algo_handle == 'classifier':
             hpmap.update({
                 # model architecture
                 'backbone': self.config['backbone'],
                 'pretrained_w_imagenet': self.config['pretrained_w_imagenet'],
                 'fc_hid_dim': self.config['fc_hid_dim'],
             })
-        elif algo_handle == 'bigearthnet_simclr':
+        elif algo_handle == 'simclr':
             hpmap.update({
                 # model architecture
                 'backbone': self.config['backbone'],
@@ -170,7 +170,7 @@ class Spawner(object):
             })
             if 'load_checkpoint' in self.config:
                 hpmap.update({'load_checkpoint': self.load_checkpoint})
-        elif algo_handle == 'bigearthnet_compressor':
+        elif algo_handle == 'compressor':
             hpmap.update({
                 # training
                 'max_lr': self.config['max_lr'],

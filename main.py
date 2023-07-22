@@ -46,18 +46,18 @@ def train(args):
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
 
-    # Create an algorithm wrapper
     if args.dataset_handle == 'bigearthnet':
         args.num_classes = BigEarthNetDataset.num_classes()
-    if args.algo_handle == 'bigearthnet_classifier':
+
+    if args.algo_handle == 'classifier':
         algo_class_handle = Classifier
         num_transforms = 1
         with_labels = True
-    elif args.algo_handle == 'bigearthnet_simclr':
+    elif args.algo_handle == 'simclr':
         algo_class_handle = SimCLR
         num_transforms = 2
         with_labels = True
-    elif args.algo_handle == 'bigearthnet_compressor':
+    elif args.algo_handle == 'compressor':
         algo_class_handle = Compressor
         num_transforms = 1
         with_labels = False

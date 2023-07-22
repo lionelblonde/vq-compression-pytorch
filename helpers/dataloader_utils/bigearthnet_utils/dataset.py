@@ -9,7 +9,6 @@ import numpy as np
 import rasterio
 import torch
 from torch.utils.data import Dataset
-from torchvision import transforms
 
 from helpers.dataloader_utils import read_from_file, read_path_from_file, read_list_from_file, save2file
 from helpers.dataloader_utils.bigearthnet_utils.constants import BAND_NAMES, RGB_BANDS_NAMES, LABELS
@@ -40,14 +39,10 @@ class BigEarthNetDataset(Dataset):
         """
         assert num_transforms in [1, 2] and isinstance(num_transforms, int)
 
-        if num_transforms == 1:
-            self.transform = None
-        else:  # num_transforms == 2
-            # We have checked above that only one of the condition is true
-            if train_stage:
-                self.transform = self.train_transform(image_size)
-            else:
-                self.transform = self.eval_transform(image_size)
+        if num_transforms == 2 and train_stage:
+            self.data_augment_f = TransformsToolkit.transform_bigearthnet(image_size)
+        else:
+            self.data_augment_f = None
 
         self.split_path = split_path
         self.with_labels = with_labels
@@ -81,12 +76,6 @@ class BigEarthNetDataset(Dataset):
     @staticmethod
     def num_classes() -> int:
         return len(LABELS)
-
-    def train_transform(self, image_size: int) -> transforms.Compose:
-        return TransformsToolkit.transform_bigearthnet_train(image_size)
-
-    def eval_transform(self, image_size: int) -> transforms.Compose:
-        return TransformsToolkit.transform_bigearthnet_eval(image_size)
 
     def verify_bands(self, bands: List[str]) -> None:
         for band in bands:
@@ -159,10 +148,6 @@ class BigEarthNetDataset(Dataset):
 
             bands_data = np.stack(bands_data)
 
-            # normalize the bands
-            # bands_data = self.normalize_bands(bands_data)  # between 0 and 255
-            # bands_data = self.normalize_bands(bands_data, desired_max=1)  # between 0 and 1
-
             data.append(bands_data)
         data_np = np.array(data)
         del data
@@ -170,27 +155,6 @@ class BigEarthNetDataset(Dataset):
             return torch.Tensor(data_np[0])
         else:
             return torch.Tensor(data_np)
-
-    # def normalize_bands(
-    #     self,
-    #     bands_data: np.ndarray,
-    #     desired_max: int = 255,
-    #     band_min: int = 0,
-    #     band_max: int = 10000,
-    #     normalize_per_band: bool = True,
-    # ) -> np.ndarray:
-    #     bands_data = bands_data.astype(float)
-    #     if normalize_per_band:
-    #         for band_idx in range(bands_data.shape[0]):
-    #             np.clip(bands_data[band_idx], band_min, band_max)
-    #             bands_data[band_idx] = (
-    #                 bands_data[band_idx] / bands_data[band_idx].max()
-    #             ) * desired_max
-
-    #     else:
-    #         np.clip(bands_data, band_min, band_max)
-    #         bands_data = (bands_data / bands_data.max()) * desired_max
-    #     return bands_data
 
     def __len__(self) -> int:
         """Returns number of instances in dataset."""
@@ -206,10 +170,10 @@ class BigEarthNetDataset(Dataset):
         else:
             data = self.read_data([self.folder_path_list[index]], bands=bands)
 
-        if self.transform is not None:
+        if self.data_augment_f is not None:
             output = torch.stack([
-                self.transform(torch.Tensor(data)),
-                self.transform(torch.Tensor(data)),  # two transforms
+                self.data_augment_f(torch.Tensor(data)),
+                self.data_augment_f(torch.Tensor(data)),  # two transforms
             ])
         else:
             output = data

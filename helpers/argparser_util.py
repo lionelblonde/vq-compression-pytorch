@@ -7,7 +7,7 @@ def boolean_flag(
     parser: argparse.ArgumentParser,
     name: str,
     default: Optional[bool] = False,
-    help: Optional[str] = None,
+    help: Optional[str] = None,  # noqa
 ):
     """Add a boolean flag to argparse parser."""
     dest = name.replace('-', '_')
@@ -45,9 +45,9 @@ def agg_argparser():
     parser.add_argument("--clip_norm", type=float, default=60.)
     # algo
     parser.add_argument("--algo_handle", type=str, choices=[
-        'bigearthnet_classifier',
-        'bigearthnet_simclr',
-        'bigearthnet_compressor',
+        'classifier',
+        'simclr',
+        'compressor',
     ], default=None)
 
     # >>>> classifier
@@ -60,11 +60,6 @@ def agg_argparser():
     # >>>> simclr
 
     # model architecture
-    # >>>>>>>> overlap w/ classifier
-    # parser.add_argument("--backbone", type=str, choices=['resnet18', 'resnet50'], default=None)
-    # boolean_flag(parser, "pretrained_w_imagenet", default=True)
-    # parser.add_argument("--fc_hid_dim", type=int, default=128)
-    # <<<<<<<<
     parser.add_argument("--fc_out_dim", type=int, default=64)
     # fine-tuning or linear probing
     boolean_flag(parser, "linear_probe", default=False)
