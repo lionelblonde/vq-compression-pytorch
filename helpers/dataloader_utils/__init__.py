@@ -21,7 +21,7 @@ def read_from_file(path: str, parent: str = "") -> List[str]:
     return content
 
 
-def read_path_from_file(path: str, parent: str, truncate_at: int = None) -> List[Path]:
+def read_path_from_file(path: str, parent: str, truncate_at: int = 100) -> List[Path]:
     content = read_from_file(path, parent)
     if truncate_at is None:
         content = [Path(line) for line in content]
@@ -31,7 +31,7 @@ def read_path_from_file(path: str, parent: str, truncate_at: int = None) -> List
     return content
 
 
-def read_list_from_file(path: str, truncate_at: int = None) -> List[List[int]]:
+def read_list_from_file(path: str, truncate_at: int = 100) -> List[List[int]]:
     content = read_from_file(path)
     if truncate_at is None:
         content = [[int(li.rstrip()) for li in line[1:-1].split(',')] for line in content]

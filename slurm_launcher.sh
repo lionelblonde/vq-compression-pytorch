@@ -2,9 +2,10 @@
 
 # export DATASET_DIR=/srv/beegfs/scratch/shares/dmml/eo4eu/datasets
 export DATASET_DIR=/share/users/${USER:0:1}/${USER}
+export MODEL_DIR=/home/users/b/blondeli/Code/geo-pytorch/data/checkpoints/phupu_weerer_ceeree.gitSHA_ccb2418.bigearthnet_simclr_1.seed00
 
 python spawner.py \
-    --config configs/classification/classifier_fp16.yaml \
+    --config configs/ssl/simclr.yaml \
     --conda_env geocuda \
     --deployment slurm \
     --num_seeds 2 \

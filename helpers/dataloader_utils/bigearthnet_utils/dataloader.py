@@ -28,7 +28,8 @@ def get_dataloader(
     num_transforms: int = 2,
     with_labels: bool = False,
     memory: bool = False,
-    truncate_at: int = None,
+    truncate_at: int = 100,
+    num_workers: int = 0,
     shuffle: bool = False,
 ):
 
@@ -46,8 +47,7 @@ def get_dataloader(
                 truncate_at=truncate_at,
             ),
             batch_size=batch_size,
-            num_workers=4,
-            pin_memory=True,
+            num_workers=num_workers,  # a value of 0 plugs the memory leak (can't avoid using Python lists)
             shuffle=shuffle,
             drop_last=True,
         )

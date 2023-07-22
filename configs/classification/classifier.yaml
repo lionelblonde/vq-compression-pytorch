@@ -5,7 +5,7 @@ task: 'train'
 
 # resources
 cuda: true
-fp16: false
+fp16: true
 
 # logging
 wandb_project: 'charizard'
@@ -15,6 +15,7 @@ dataset_handle: 'bigearthnet'
 # data path is handled by the spawner w/ an environ variable
 val_split: 0.25
 test_split: 0.25
+num_workers: 4
 
 # training
 epochs: 100

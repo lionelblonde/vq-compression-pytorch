@@ -1,6 +1,6 @@
 import torch.nn as nn
 from torchvision import transforms
-from torchvision.transforms import InterpolationMode as im
+from torchvision.transforms import InterpolationMode
 
 
 class TransformsToolkit(object):
@@ -10,22 +10,18 @@ class TransformsToolkit(object):
         """Trying to assemble a transform that makes sense for satellite images"""
         return transforms.Compose([
             # Rotate the image by angle
-            transforms.RandomRotation((0, 360), interpolation=im.BILINEAR),
+            transforms.RandomRotation((0, 360), interpolation=InterpolationMode.BILINEAR),
             # Flip the given image randomly with a given probability
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.RandomVerticalFlip(p=0.5),
-            # Randomly change the brightness, contrast, saturation and hue of an image
-            transforms.ColorJitter(brightness=0., contrast=0., saturation=0., hue=0.),
             # Blurs image with randomly chosen Gaussian blur
-            transforms.GaussianBlur(kernel_size=int(0.1 * image_size), sigma=(0.1, 2.0)),
+            transforms.GaussianBlur(kernel_size=13)  # default for sigma is: sigma=(0.1, 2.0)
         ])
 
     @staticmethod
     def transform_bigearthnet_eval(image_size):
         """Same as above: trying to make sense for satellite images"""
         return transforms.Compose([
-            # Resize the input image to the given size
-            transforms.Resize(image_size, interpolation=im.BICUBIC),
         ])
 
     @staticmethod

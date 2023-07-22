@@ -1,6 +1,5 @@
 import random
-import os
-import os.path as osp
+from pathlib import Path
 import subprocess
 
 import numpy as np
@@ -20,7 +19,7 @@ def uuid(num_syllables=2, num_parts=3):
             result += seps[random.randrange(len(seps))]
         indices1 = [random.randrange(len(part1)) for _ in range(num_syllables)]
         indices2 = [random.randrange(len(part2)) for _ in range(num_syllables)]
-        for i1, i2 in zip(indices1, indices2):
+        for i1, i2 in zip(indices1, indices2, strict=True):
             result += part1[i1] + part2[i2]
     return result
 
@@ -30,13 +29,13 @@ class ConfigDumper:
     def __init__(self, args, path):
         """Log the job config into a file"""
         self.args = args
-        os.makedirs(path, exist_ok=True)
+        Path(path).mkdir(exist_ok=True)
         self.path = path
 
     def dump(self):
         hpmap = self.args.__dict__
-        with open(osp.join(self.path, 'hyperparameters.yml'), 'w') as outfile:
-            yaml.safe_dump(hpmap, outfile, default_flow_style=False)
+        path = Path(self.path) / 'hyperparameters.yml'
+        path.write_text(yaml.dump(hpmap, default_flow_style=False))  # sanity check: print(path.read_text())
 
 
 class ExperimentInitializer:
@@ -52,15 +51,15 @@ class ExperimentInitializer:
     def configure_logging(self, train=True):
         """Configure the experiment"""
         if train:
-            log_path = osp.join(self.args.log_dir, self.get_name())
+            log_path = Path(self.args.log_dir) / self.get_name()
             formats_strs = ['stdout', 'log', 'csv']
             logger.info("configuring logger")
-            logger.configure(dir_=log_path, format_strs=formats_strs)
+            logger.configure(dir_=str(log_path), format_strs=formats_strs)
             logger.info("logger configured")
             logger.info(f"  directory: {log_path}")
             logger.info(f"  output formats: {formats_strs}")
             # In the same log folder, log args in a YAML file
-            config_dumper = ConfigDumper(args=self.args, path=log_path)
+            config_dumper = ConfigDumper(args=self.args, path=str(log_path))
             config_dumper.dump()
             logger.info("experiment configured")
         else:
@@ -74,14 +73,15 @@ class ExperimentInitializer:
             return self.uuid
         # Assemble the uuid
         name = self.uuid + '.'
-        # try:
-        #     out = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'])
-        #     name += f"gitSHA_{out.strip().decode('ascii')}."
-        # except OSError:
-        #     pass
+        try:
+            out = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'])
+            name += f"gitSHA_{out.strip().decode('ascii')}."
+        except OSError:
+             pass
         if self.args.task == 'eval':
-            name += "INFERENCE."
-        name += self.args.env_id
+            name += "INFERENCE"
+        else:
+            name += "TRAINING"
         name += f".{self.args.algo_handle}"
         name += f".seed{str(self.args.seed).zfill(2)}"
         return name

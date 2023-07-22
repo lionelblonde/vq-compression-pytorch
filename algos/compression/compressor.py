@@ -1,6 +1,7 @@
 import os
-import os.path as osp
+from pathlib import Path
 import itertools
+from contextlib import nullcontext
 
 from tqdm import tqdm
 
@@ -10,7 +11,6 @@ import numpy as np
 import torch
 from torch.nn.utils import clip_grad as cg
 from torch.cuda.amp import grad_scaler as gs
-from torch.cuda.amp import autocast_mode as am
 
 from helpers import logger
 from helpers.console_util import log_module_info
@@ -37,33 +37,26 @@ class Compressor(object):
         if self.hps.clip_norm <= 0:
             logger.info(f"clip_norm={self.hps.clip_norm} <= 0, hence disabled.")
 
-        # Create nets
         self.model = VectorQuantizationAutoEncoder(hps=self.hps).to(self.device)
 
-        # Create criterion
         self.criteria = self.model.loss_func  # contains several losses
 
-        # Set up the optimizer
         self.opt = torch.optim.Adam(
             self.model.parameters(),
             lr=self.hps.lr,
             weight_decay=self.hps.wd,
         )
 
-        # Set up the gradient scaler for fp16 gpu precision
+        self.ctx = (
+            torch.amp.autocast(device_type='cuda', dtype=torch.float16 if self.hps.fp16 else torch.float32)
+            if self.hps.cuda
+            else nullcontext()
+        )
+
         self.scaler = gs.GradScaler(enabled=self.hps.fp16)
 
-        log_module_info(logger, 'simclr_model', self.model)
+        log_module_info(logger, 'compressor_model', self.model)
 
-    def set_scheduler(self, steps_per_epoch):
-        # Set up lr scheduler
-        self.scheduler = torch.optim.lr_scheduler.OneCycleLR(
-            self.opt,
-            self.hps.max_lr,
-            epochs=self.hps.epochs,
-            steps_per_epoch=steps_per_epoch,
-            final_div_factor=1000,
-        )
 
     def compute_loss(self, x):
         recon_x, vq_loss, perplexity, encoding_indices, normalized_distances = self.model(x)
@@ -81,67 +74,87 @@ class Compressor(object):
 
     def train(self, train_dataloader, val_dataloader):
 
-        agg_iterable = zip(tqdm(train_dataloader), itertools.cycle(val_dataloader))
+        acc_grad_steps = 8  # TODO: make this a hp
+
+        agg_iterable = zip(
+            tqdm(train_dataloader),
+            itertools.chain.from_iterable(itertools.repeat(val_dataloader)),
+            strict=False,
+        )
+
         for i, (t_x, v_x) in enumerate(agg_iterable):
 
-            # 1|3>>>> train
+            if self.hps.cuda:
+                t_x = t_x.pin_memory().to(self.device, non_blocking=True)
+            else:
+                t_x = t_x.to(self.device)
 
-            t_x = t_x.to(self.device)
-            with am.autocast(enabled=self.hps.fp16):
+            with self.ctx:
                 t_metrics, t_loss, _ = self.compute_loss(t_x)
+                t_loss /= acc_grad_steps
 
-            # Update parameters
-            self.opt.zero_grad()
-            scaled_loss = self.scaler.scale(t_loss)
-            scaled_loss.backward()
-            if self.hps.clip_norm > 0:
-                cg.clip_grad_norm_(self.model.parameters(), self.hps.clip_norm)
-            self.scaler.step(self.opt)
-            self.scaler.update()
-            # Update lr
-            self.scheduler.step()
+            self.scaler.scale(t_loss).backward()
 
-            # 2|2>>>> evaluate
+            if ((i + 1) % acc_grad_steps == 0) or (i + 1 == len(train_dataloader)):
 
-            if self.iters_so_far % self.hps.eval_every == 0:
+                if self.hps.clip_norm > 0:
+                    self.scaler.unscale_(self.opt)
+                    cg.clip_grad_norm_(self.model.parameters(), self.hps.clip_norm)
+
+                self.scaler.step(self.opt)
+                self.scaler.update()
+                self.opt.zero_grad()
+
+                self.iters_so_far += 1
+
+                self.send_to_dash(t_metrics, mode='train')
+                del t_metrics
+
+            if ((i + 1) % self.hps.eval_every == 0) or (i + 1 == len(train_dataloader)):
 
                 self.model.eval()
 
-                v_x = v_x.to(self.device)
+                if self.hps.cuda:
+                    v_x = v_x.pin_memory().to(self.device, non_blocking=True)
+                else:
+                    v_x = v_x.to(self.device)
+
                 v_metrics, _, _ = self.compute_loss(v_x)
 
-                # 3|3>>>> wrap up
                 self.send_to_dash(v_metrics, mode='val')
+                del v_metrics
 
-            self.send_to_dash(t_metrics, mode='train')
+                self.model.train()
 
             if DEBUG:
                 last_lr = self.scheduler.get_last_lr()[0]
                 logger.info(f"lr is {last_lr} after {self.iters_so_far} gradient steps")
 
-            self.model.train()
-
-            self.iters_so_far += 1
 
         self.epochs_so_far += 1
 
     def test(self, dataloader):
+
         self.model.eval()
 
-        for i, x in enumerate(tqdm(dataloader)):
+        for x in tqdm(dataloader):
 
-            x = x.to(self.device)
+            if self.hps.cuda:
+                x = x.pin_memory().to(self.device, non_blocking=True)
+            else:
+                x = x.to(self.device)
+
             metrics, _, table = self.compute_loss(x)
 
             self.send_to_dash(metrics, table, mode='test')
 
-        # /!\ training mode is turned back on
         self.model.train()
 
     def save(self, path, epochs_so_far):
-        model_dest_path = osp.join(path, f"model_{epochs_so_far}.tar")
+        model_dest_path = Path(path) / f"model_{epochs_so_far}.tar"
         torch.save(self.model.state_dict(), model_dest_path)
 
     def load(self, path, epochs_so_far):
-        model_orig_path = osp.join(path, f"model_{epochs_so_far}.tar")
+        model_orig_path = Path(path) / f"model_{epochs_so_far}.tar"
         self.model.load_state_dict(torch.load(model_orig_path))
+

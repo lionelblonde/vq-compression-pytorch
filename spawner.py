@@ -1,11 +1,12 @@
 import argparse
+
 from copy import deepcopy
 import os
 import sys
 import numpy as np
 import subprocess
 import yaml
-# from datetime import datetime
+from pathlib import Path
 
 from helpers import logger
 from helpers.argparser_util import boolean_flag
@@ -23,7 +24,7 @@ def zipsame(*seqs):
     assert seqs, "empty input sequence"
     ref_len = len(seqs[0])
     assert all(len(seq) == ref_len for seq in seqs[1:])
-    return zip(*seqs)
+    return zip(*seqs, strict=False)
 
 
 class Spawner(object):
@@ -32,13 +33,12 @@ class Spawner(object):
         self.args = args
 
         # Retrieve config from filesystem
-        self.config = yaml.safe_load(open(self.args.config))
+        self.config = yaml.safe_load(Path(self.args.config).open())
 
         # Assemble wandb project name
         self.wandb_project = '-'.join([
             self.config['wandb_project'].upper(),
             self.args.deployment.upper(),
-            # datetime.now().strftime('%B')[0:3].upper() + f"{datetime.now().year}",
         ])
 
         # Define spawn type
@@ -52,20 +52,22 @@ class Spawner(object):
 
         if self.args.deployment == 'slurm':
             # Translate intuitive 'caliber' into actual duration and partition on the Baobab cluster
-            calibers = dict(short='0-06:00:00',
-                            long='0-12:00:00',
-                            verylong='1-00:00:00',
-                            veryverylong='2-00:00:00',
-                            veryveryverylong='4-00:00:00')
+            calibers = {
+                'short': '0-06:00:00',
+                'long': '0-12:00:00',
+                'verylong': '1-00:00:00',
+                'veryverylong': '2-00:00:00',
+                'veryveryverylong': '4-00:00:00',
+            }
             self.duration = calibers[self.args.caliber]  # intended KeyError trigger if invalid caliber
             if 'verylong' in self.args.caliber:
                 if self.config['cuda']:
-                    self.partition = 'private-cui-gpu,private-kalousis-gpu'
+                    self.partition = 'private-cui-gpu'
                 else:
                     self.partition = 'public-cpu,private-cui-cpu,public-longrun-cpu'
             else:
                 if self.config['cuda']:
-                    self.partition = 'shared-gpu,private-cui-gpu,private-kalousis-gpu'
+                    self.partition = 'shared-gpu,private-cui-gpu'
                 else:
                     self.partition = 'shared-cpu,public-cpu,private-cui-cpu'
 
@@ -75,12 +77,12 @@ class Spawner(object):
                 self.dataset = "BigEarthNet-v1.0"
             case _:
                 raise ValueError("invalid dataset handle (strict folder naming rule!)")
-        self.data_path = os.path.join(os.environ['DATASET_DIR'], self.dataset)
-        os.environ['DATASET_DIR'] = self.data_path  # overwrite the environ variable
+        self.data_path = Path(os.environ['DATASET_DIR']) / self.dataset
+        os.environ['DATASET_DIR'] = str(self.data_path)  # overwrite the environ variable
 
         # If fine-tuning or linear probing, add the path to the pretrained SSL model
         if 'load_checkpoint' in self.config:
-            self.load_checkpoint = os.path.join(os.environ['MODEL_DIR'], self.config['load_checkpoint'])
+            self.load_checkpoint = Path(os.environ['MODEL_DIR']) / self.config['load_checkpoint']
 
     def copy_and_add_seed(self, hpmap, seed):
         hpmap_ = deepcopy(hpmap)
@@ -192,9 +194,10 @@ class Spawner(object):
 
         if self.args.sweep:
             # Random search: replace some entries with random values
+            rng = np.random.default_rng(seed=None)
             hpmap.update({
-                'batch_size': int(np.random.choice([64, 128, 256])),
-                'lr': float(np.random.choice([1e-4, 3e-4])),
+                'batch_size': int(rng.choice([64, 128, 256])),
+                'lr': float(rng.choice([1e-4, 3e-4])),
             })
 
         # Duplicate for each seed
@@ -225,10 +228,10 @@ class Spawner(object):
         """Build the batch script that launches a job"""
 
         # Prepend python command with python binary path
-        command = os.path.join(os.environ['CONDA_PREFIX'], "bin", command)
+        command = Path(os.environ['CONDA_PREFIX']) / "bin" / command
 
         if self.args.deployment == 'slurm':
-            os.makedirs("./out", exist_ok=True)
+            Path("./out").mkdir(exist_ok=True)
             # Set sbatch config
             bash_script_str = ('#!/usr/bin/env bash\n\n')
             bash_script_str += (f"#SBATCH --job-name={name}\n"
@@ -300,12 +303,12 @@ def run(args):
     spawner = Spawner(args)
 
     # Create directory for spawned jobs
-    root = os.path.dirname(os.path.abspath(__file__))
-    spawn_dir = os.path.join(root, 'spawn')
-    os.makedirs(spawn_dir, exist_ok=True)
+    root = Path(__file__).resolve().parent
+    spawn_dir = Path(root) / 'spawn'
+    Path(spawn_dir).mkdir(exist_ok=True)
     if args.deployment == 'tmux':
-        tmux_dir = os.path.join(root, 'tmux')
-        os.makedirs(tmux_dir, exist_ok=True)
+        tmux_dir = Path(root) / 'tmux'
+        Path(tmux_dir).mkdir(exist_ok=True)
 
     # Get the hyperparameter set(s)
     if args.sweep:
@@ -335,11 +338,10 @@ def run(args):
             logger.info("config below.")
             logger.info(job + "\n")
         dirname = name.split('.')[1]
-        full_dirname = os.path.join(spawn_dir, dirname)
-        os.makedirs(full_dirname, exist_ok=True)
-        job_name = os.path.join(full_dirname, f"{name}.sh")
-        with open(job_name, 'w') as f:
-            f.write(job)
+        full_dirname = Path(spawn_dir) / dirname
+        Path(full_dirname).mkdir(exist_ok=True)
+        job_name = Path(full_dirname) / f"{name}.sh"
+        job_name.write_text(job)
         if args.deploy_now and not args.deployment == 'tmux':
             # Spawn the job!
             stdout = subprocess.run(["sbatch", job_name]).stdout
@@ -364,9 +366,8 @@ def run(args):
             yaml_content['windows'].append(window)
             logger.info(f"job#={i},name={name} -> will run in tmux, session={session_name},window={i}.")
         # Dump the assembled tmux config into a yaml file
-        job_config = os.path.join(tmux_dir, f"{session_name}.yaml")
-        with open(job_config, "w") as f:
-            yaml.dump(yaml_content, f, default_flow_style=False)
+        job_config = Path(tmux_dir) / f"{session_name}.yaml"
+        job_config.write_text(yaml.dump(yaml_content, default_flow_style=False))
         if args.deploy_now:
             # Spawn all the jobs in the tmux session!
             stdout = subprocess.run(["tmuxp", "load", "-d", job_config]).stdout

@@ -10,44 +10,37 @@ class NTXentLoss(nn.Module):
     Created as an alternative/improvement of the classical NCE loss of SimCLR
     """
 
-    def __init__(self, batch_size, temperature=0.5):
-        # See appendix B.7.: optimal temperature under different batch sizes
+    def __init__(self, normalize_hidden=True, temperature=0.07):  # default value use in MoCo
         super().__init__()
-        self.batch_size = batch_size
+        self.normalize_hidden = normalize_hidden
         self.temperature = temperature
-
-        self.mask = self.mask_correlated_samples(batch_size)
-        self.criterion = nn.CrossEntropyLoss(reduction="sum")
-        self.similarity_f = nn.CosineSimilarity(dim=2)
-
-    def mask_correlated_samples(self, batch_size: int):
-        n_const = 2 * batch_size
-        mask = torch.ones((n_const, n_const)).bool()  # cast to bool
-        mask = mask.fill_diagonal_(0)
-        for i in range(batch_size):
-            mask[i, batch_size + i] = 0
-            mask[batch_size + i, i] = 0
-        return mask
+        self.criterion = nn.CrossEntropyLoss(reduction="sum")  # we divide manually afterwards
+        self.sim_f = nn.CosineSimilarity(dim=2)
 
     def forward(self, z_i, z_j):
         """We do not sample negative examples explicitly.
         Instead, given a positive pair, similar to (Chen et al., 2017), we treat
-        the other 2(N − 1) augmented examples within a minibatch as negative examples.
+        the other 2(batch_size - 1) augmented examples within a minibatch as negative examples.
         """
-        N = 2 * self.batch_size
+        batch_size = z_j.size(0)  # arbitrary choice of index
+        device = z_j.device  # same
 
         z = torch.cat((z_i, z_j), dim=0)
 
-        sim = self.similarity_f(z.unsqueeze(1), z.unsqueeze(0)) / self.temperature
+        if self.normalize_hidden:
+            z = nn.functional.normalize(z, p=2, dim=-1)
 
-        sim_i_j = torch.diag(sim, self.batch_size)
-        sim_j_i = torch.diag(sim, -self.batch_size)
+        sim = self.sim_f(z.unsqueeze(1), z.unsqueeze(0)) / self.temperature
 
-        positive_samples = torch.cat((sim_i_j, sim_j_i), dim=0).reshape(N, 1)
-        negative_samples = sim[self.mask].reshape(N, -1)
+        sim_i_j = torch.diag(sim, batch_size)
+        sim_j_i = torch.diag(sim, -batch_size)
+        positive_samples = torch.cat((sim_i_j, sim_j_i), dim=0).reshape(2 * batch_size, 1)
 
-        labels = torch.zeros(N).to(positive_samples.device).long()
-        logits = torch.cat((positive_samples, negative_samples), dim=1)
-        loss = self.criterion(logits, labels)
-        loss /= N
+        mask = (torch.ones_like(sim, device=device) - torch.eye(2 * batch_size, device=device)).bool()
+
+        negative_samples = sim.masked_select(mask).reshape(2 * batch_size, -1)
+
+        loss = -(torch.log(positive_samples.exp() / negative_samples.exp().sum(dim=-1))).mean()
+
         return loss
+

@@ -5,7 +5,7 @@ task: 'train'
 
 # resources
 cuda: true
-fp16: false
+fp16: true
 
 # logging
 wandb_project: 'cubone'
@@ -15,6 +15,7 @@ dataset_handle: 'bigearthnet'
 # data path is handled by the spawner w/ an environ variable
 val_split: 0.25
 test_split: 0.25
+num_workers: 4
 
 # training
 epochs: -1
@@ -22,15 +23,15 @@ batch_size: 128
 save_freq: 1
 
 # opt
-lr: 3e-4
-wd: 1e-6
+lr: 1.0
+wd: 0
 clip_norm: 0
 
 # algo
 algo_handle: 'bigearthnet_simclr'
 
 # model architecture
-backbone: 'resnet18'
+backbone: 'resnet101'
 pretrained_w_imagenet: true
 fc_hid_dim: 128
 fc_out_dim: 64
@@ -39,5 +40,5 @@ fc_out_dim: 64
 load_checkpoint: 'model_3_done.tar'
 linear_probe: true
 fine_tuning: false
-finetune_probe_epochs: 50
-finetune_probe_batch_size: 256
+finetune_probe_epochs: 90
+finetune_probe_batch_size: 128

@@ -1,7 +1,6 @@
 from collections import defaultdict
 
 import torch.nn as nn
-import torch.nn.functional as F
 
 from algos.compression.models import EncoderModel, DecoderModel
 from algos.compression.quantizers import VectorQuantizer
@@ -26,7 +25,7 @@ class VectorQuantizationAutoEncoder(nn.Module):
 
     def loss_func(self, x, recon_x, vq_loss, encoding_indices, normalized_proximities):
 
-        recon_error = F.mse_loss(x, recon_x)
+        recon_error = nn.functional.mse_loss(x, recon_x)
 
         losses = defaultdict()
         losses['recon_error'] = recon_error
@@ -46,7 +45,7 @@ class VectorQuantizationAutoEncoder(nn.Module):
         losses['loss'] = loss
 
         # Create a table containing the estimated codebook usage
-        normalized_codex = F.softmax(self.histogram.thetas, dim=0)  # only one dim anyway
+        normalized_codex = nn.functional.softmax(self.histogram.thetas, dim=0)  # only one dim anyway
         indices_of_codex = list(range(len(normalized_codex)))
         table = [[c, p.item()] for c, p in zip(indices_of_codex, normalized_codex)]
 

@@ -32,6 +32,8 @@ def agg_argparser():
     parser.add_argument("--val_split", type=float, default=0.15)
     parser.add_argument("--test_split", type=float, default=0.15)
     parser.add_argument("--truncate_at", type=int, default=100, help="amount of data to keep in %")
+    parser.add_argument("--num_workers", type=int, default=0,
+                        help="parallel workers in dataloader; 0 means no parallelism")
     # training
     parser.add_argument("--epochs", type=int, default=100, help="number of epochs to train model")
     parser.add_argument("--batch_size", type=int, default=128, help="batch size for SSL")
@@ -47,7 +49,6 @@ def agg_argparser():
         'bigearthnet_simclr',
         'bigearthnet_compressor',
     ], default=None)
-    parser.add_argument("--env_id", type=str, default='')
 
     # >>>> classifier
 
@@ -82,7 +83,8 @@ def agg_argparser():
     parser.add_argument("--ae_hidden", type=int, default=128, help="channels in hid layers in enc/dec.")
     parser.add_argument("--ae_resblocks", type=int, default=2, help="resblocks in enc/dec")
     parser.add_argument("--ae_kernel", type=int, default=4, help="size of kernel in down/up-sampling layers")
-    parser.add_argument("--dsf", type=int, choices=[8, 4, 2, 1], default=8, help="downsampling factor (1=no downsampling)")
+    parser.add_argument("--dsf", type=int, choices=[8, 4, 2, 1], default=8,
+                        help="downsampling factor (1=no downsampling)")
     # loss
     parser.add_argument("--alpha", type=float, default=1., help="weight of soft entropy loss in total")
     parser.add_argument("--beta", type=float, default=1., help="weight of entropy loss in total")

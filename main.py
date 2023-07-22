@@ -1,7 +1,6 @@
 import os
-import random
+from pathlib import Path
 
-import numpy as np
 import torch
 from torch.backends import cudnn as cudnn
 
@@ -26,7 +25,6 @@ def train(args):
 
     # Set device-related knobs
     assert not args.fp16 or args.cuda, "fp16 ==> cuda"
-    # XXX: will use all of the available gpus!
     if args.cuda:
         # Use cuda
         assert torch.cuda.is_available()
@@ -47,8 +45,6 @@ def train(args):
     # Seedify
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
-    np.random.seed(args.seed)
-    random.seed(args.seed)
 
     # Create an algorithm wrapper
     if args.dataset_handle == 'bigearthnet':
@@ -88,12 +84,13 @@ if __name__ == '__main__':
     _args = agg_argparser().parse_args()
 
     # Make the paths absolute
-    _args.root = os.path.dirname(os.path.abspath(__file__))
+    _args.root = Path(__file__).resolve().parent
     for k in ['checkpoints', 'logs']:
         new_k = f"{k[:-1]}_dir"
-        vars(_args)[new_k] = os.path.join(_args.root, 'data', k)
+        vars(_args)[new_k] = Path(_args.root) / 'data' / k
 
     if _args.task == 'train':
         train(_args)
     else:
         raise NotImplementedError
+

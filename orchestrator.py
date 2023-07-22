@@ -1,7 +1,7 @@
 import time
 import os
-import os.path as osp
 import signal
+from pathlib import Path
 
 import wandb
 import numpy as np
@@ -43,6 +43,7 @@ def learn(
             "num_transforms": num_transforms,
             "with_labels": with_labels,
             "truncate_at": args.truncate_at,
+            "num_workers": args.num_workers,
         }
         # Create the dataloaders
         dataloaders.append(get_dataloader(**tmpdict, split_path=paths_list[0], train_stage=True, shuffle=True))
@@ -64,13 +65,14 @@ def learn(
                 "num_transforms": 1,
                 "with_labels": with_labels,
                 "truncate_at": args.truncate_at,
+                "num_workers": args.num_workers,
             }
             # Create the dataloaders
-            dataloaders_2.append(get_dataloader(**tmpdict, split_path=paths_list[0], train_stage=True))
+            dataloaders_2.append(get_dataloader(**tmpdict, split_path=paths_list[0], train_stage=True, shuffle=True))
             dataloaders_2.append(get_dataloader(**tmpdict, split_path=paths_list[1]))
             dataloaders_2.append(get_dataloader(**tmpdict, split_path=paths_list[2]))
 
-            for k, v in dataloaders_2.items():
+            for i, e in enumerate(dataloaders_2):
                 # Log stats about the dataloaders
                 ds_len = e.dataset_length
                 dl_len = len(e)
@@ -79,16 +81,11 @@ def learn(
     # Create an algorithm
     algo = algo_wrapper()
 
-    if not hasattr(algo, "scheduler"):
-        # In the case of compression, we use an exotic lr scheduler (OneCycleLR)
-        # but we first needed more information about the dataset/dataloaders
-        algo.set_scheduler(len(dataloaders[0]))
-
     tstart = time.time()
 
     # Set up model save directory
-    ckpt_dir = osp.join(args.checkpoint_dir, experiment_name)
-    os.makedirs(ckpt_dir, exist_ok=True)
+    ckpt_dir = Path(args.checkpoint_dir) / experiment_name
+    Path.mkdir(ckpt_dir, exist_ok=True)
     # Save the model as a dry run, to avoid bad surprises at the end
     algo.save(ckpt_dir, f"{algo.epochs_so_far}_dryrun")
     logger.info(f"dry run. Saving model @: {ckpt_dir}")
@@ -106,8 +103,6 @@ def learn(
     signal.signal(signal.SIGTERM, timeout)
 
     # Group by everything except the seed, which is last, hence index -1
-    # For 'gail', it groups by uuid + gitSHA + env_id + num_demos,
-    # while for 'ppo', it groups by uuid + gitSHA + env_id
     group = '.'.join(experiment_name.split('.')[:-1])
 
     # Set up wandb
@@ -128,7 +123,8 @@ def learn(
             time.sleep(pause)
     logger.info("wandb co established!")
 
-    while algo.epochs_so_far <= args.epochs:
+    while algo.epochs_so_far < args.epochs:
+        logger.info("training")
 
         log_epoch_info(logger, algo.epochs_so_far, args.epochs, tstart)
 
@@ -137,24 +133,18 @@ def learn(
         if algo.epochs_so_far % args.save_freq == 0:
             algo.save(ckpt_dir, algo.epochs_so_far)
 
-    logger.info("testing")
-    algo.test(dataloaders[2])
-
-    if algo.epochs_so_far > 0:
-        # Save once we are done, unless we have not done a single epoch of training
-        algo.save(ckpt_dir, f"{algo.epochs_so_far}_done")
-        logger.info(f"we're done. Saving model @: {ckpt_dir}")
-        logger.info("bye.")
 
     if args.linear_probe or args.fine_tuning:
-
-        logger.info("we are now either fine-tuning or linear probing.")
+        if args.linear_probe:
+            logger.info("linear-probing")
+        else:
+            logger.info("fine-tuning")
 
         tstart = time.time()
 
         algo.renew_head()  # also resets the epoch counter!
 
-        while algo.epochs_so_far <= args.finetune_probe_epochs:
+        while algo.epochs_so_far < args.finetune_probe_epochs:
 
             log_epoch_info(logger, algo.epochs_so_far, args.finetune_probe_epochs, tstart)
 
@@ -169,3 +159,14 @@ def learn(
         logger.info("bye.")
 
         logger.info("now we are really done. bye.")
+
+    else:
+        logger.info("testing")
+        algo.test(dataloaders[2])
+
+        if algo.epochs_so_far > 0:
+            # Save once we are done, unless we have not done a single epoch of training
+            algo.save(ckpt_dir, f"{algo.epochs_so_far}_done")
+            logger.info(f"we're done. Saving model @: {ckpt_dir}")
+            logger.info("bye.")
+

@@ -30,11 +30,11 @@ class EncoderModel(nn.Module):
         # Create the two first layers, which can be/are downsampling ones
 
         self.layer_zero = nn.Sequential()
-        kwargs = dict(
-            in_channels=hps.in_channels,
-            out_channels=n // 2,
-            bias=False,
-        )
+        kwargs = {
+            'in_channels': hps.in_channels,
+            'out_channels': n // 2,
+            'bias': False,
+        }
         if hps.dsf in [8, 4, 2]:
             self.layer_zero.add_module(
                 'conv2d_0',
@@ -59,11 +59,11 @@ class EncoderModel(nn.Module):
         self.layer_zero.add_module('relu_0', nn.ReLU())
 
         self.layer_one = nn.Sequential()
-        kwargs = dict(
-            in_channels=n // 2,
-            out_channels=n,
-            bias=False,
-        )
+        kwargs = {
+            'in_channels': n // 2,
+            'out_channels': n,
+            'bias': False,
+        }
         if hps.dsf == 8:
             self.layer_one.add_module(
                 'conv2d_1',
@@ -90,13 +90,13 @@ class EncoderModel(nn.Module):
         # Create the Resnet blocks
 
         self.resblocks = nn.Sequential()
-        kwargs = dict(
-            num_conv2d=2,
-            in_channels=n,
-            out_channels=n,
-            kernel_size=3,
-            padding=1,
-        )
+        kwargs = {
+            'num_conv2d': 2,
+            'in_channels': n,
+            'out_channels': n,
+            'kernel_size': 3,
+            'padding': 1,
+        }
         for i in range(hps.ae_resblocks):
             layers = nn.Sequential()
             for j in range(3):
@@ -119,11 +119,11 @@ class EncoderModel(nn.Module):
         # Create the final layer, with special treating if high downsampling is chosen
 
         self.layer_final = nn.Sequential()
-        kwargs = dict(
-            in_channels=n,
-            out_channels=hps.z_channels,
-            bias=False,
-        )
+        kwargs = {
+            'in_channels': n,
+            'out_channels': hps.z_channels,
+            'bias': False,
+        }
         if hps.dsf in [8, 4]:
             self.layer_final.add_module(
                 'conv2d_1',
@@ -150,6 +150,7 @@ class EncoderModel(nn.Module):
         x = self.layer_zero(x)
         x = self.layer_one(x)
         x_skip = x
+        b = 0
         for b in range(self.hps.ae_resblocks):
             x = self.resblocks[b](x) + x
         x = self.resblocks[b + 1](x) + x_skip
@@ -169,11 +170,11 @@ class DecoderModel(nn.Module):
         # Create the first layer, which can be/are downsampling ones
 
         self.layer_zero = nn.Sequential()
-        kwargs = dict(
-            in_channels=hps.z_channels,
-            out_channels=n,
-            bias=False,
-        )
+        kwargs = {
+            'in_channels': hps.z_channels,
+            'out_channels': n,
+            'bias': False,
+        }
         if hps.dsf in [8, 4]:
             self.layer_zero.add_module(
                 'convtransp2d_0',
@@ -200,13 +201,13 @@ class DecoderModel(nn.Module):
         # Create the Resnet blocks
 
         self.resblocks = nn.Sequential()
-        kwargs = dict(
-            num_conv2d=2,
-            in_channels=n,
-            out_channels=n,
-            kernel_size=3,
-            padding=1,
-        )
+        kwargs = {
+            'num_conv2d': 2,
+            'in_channels': n,
+            'out_channels': n,
+            'kernel_size': 3,
+            'padding': 1,
+        }
         for i in range(hps.ae_resblocks):
             layers = nn.Sequential()
             for j in range(3):
@@ -229,11 +230,11 @@ class DecoderModel(nn.Module):
         # Create the two last layers, which can be/are downsampling ones
 
         self.layer_penultimate = nn.Sequential()
-        kwargs = dict(
-            in_channels=n,
-            out_channels=n // 2,
-            bias=False,
-        )
+        kwargs = {
+            'in_channels': n,
+            'out_channels': n // 2,
+            'bias': False,
+        }
         if hps.dsf == 8:
             self.layer_penultimate.add_module(
                 'convtransp2d_p',
@@ -258,11 +259,11 @@ class DecoderModel(nn.Module):
         self.layer_penultimate.add_module('relu_p', nn.ReLU())
 
         self.layer_final = nn.Sequential()
-        kwargs = dict(
-            in_channels=n // 2,
-            out_channels=hps.in_channels,
-            bias=False,
-        )
+        kwargs = {
+            'in_channels': n // 2,
+            'out_channels': hps.in_channels,
+            'bias': False,
+        }
         if hps.dsf in [8, 4, 2]:
             self.layer_final.add_module(
                 'convtransp2d_f',
@@ -288,6 +289,7 @@ class DecoderModel(nn.Module):
     def forward(self, x):
         x = self.layer_zero(x)
         x_skip = x
+        b = 0
         for b in range(self.hps.ae_resblocks):
             x = self.resblocks[b](x) + x
         x = self.resblocks[b + 1](x) + x_skip

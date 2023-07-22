@@ -18,9 +18,7 @@ from helpers.dataloader_utils.bigearthnet_utils.transform_util import Transforms
 
 
 def load_json(filename):
-    with open(filename, "r") as openfile:
-        data = json.load(openfile)
-    return data
+    return json.loads(Path(filename).read_text())
 
 
 class BigEarthNetDataset(Dataset):
@@ -35,7 +33,7 @@ class BigEarthNetDataset(Dataset):
         with_labels: bool = False,
         bands: List[str] = RGB_BANDS_NAMES,  # default: bands corresponding to RGB
         memory: bool = False,
-        truncate_at: int = None,
+        truncate_at: int = 100,
     ):
         """`number` is the number of patches to read (-1 for all).
         `memory` indicate if the data should be first put into memory or read on the fly.
@@ -103,7 +101,7 @@ class BigEarthNetDataset(Dataset):
         where_splits = Path(self.split_path).parent.absolute()
 
         labels_file_path = where_splits.joinpath('labels')
-        labels_file_path.mkdir(exist_ok=True, parents=True)
+        labels_file_path.mkdir(exist_ok=True)
         labels_file_path = labels_file_path.joinpath(Path(self.split_path).name)
         print("1", "labels from", labels_file_path)
 
@@ -209,10 +207,10 @@ class BigEarthNetDataset(Dataset):
             data = self.read_data([self.folder_path_list[index]], bands=bands)
 
         if self.transform is not None:
-            output = [
+            output = torch.stack([
                 self.transform(torch.Tensor(data)),
                 self.transform(torch.Tensor(data)),  # two transforms
-            ]
+            ])
         else:
             output = data
 
@@ -221,3 +219,4 @@ class BigEarthNetDataset(Dataset):
             return (output, labels_for_output)
         else:
             return output
+
