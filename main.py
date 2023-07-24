@@ -53,14 +53,17 @@ def train(args):
         algo_class_handle = Classifier
         num_transforms = 1
         with_labels = True
+        knn_eval = False
     elif args.algo_handle == 'simclr':
         algo_class_handle = SimCLR
         num_transforms = 2
         with_labels = True
+        knn_eval = True
     elif args.algo_handle == 'compressor':
         algo_class_handle = Compressor
         num_transforms = 1
         with_labels = False
+        knn_eval = False
     else:
         raise NotImplementedError("algorithm not covered")
 
@@ -77,6 +80,7 @@ def train(args):
         experiment_name=experiment_name,
         num_transforms=num_transforms,
         with_labels=with_labels,
+        knn_eval=knn_eval,
     )
 
 

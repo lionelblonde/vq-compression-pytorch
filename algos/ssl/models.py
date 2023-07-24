@@ -33,10 +33,8 @@ class SimCLRModel(nn.Module):
         z_j = self.head(self.backbone(x_j))
         return z_i, z_j
 
-    def forward_with_features(self, x_i, x_j):
-        h_i = self.backbone(x_i)
-        h_j = self.backbone(x_j)
-        z_i = self.head(h_i)
-        z_j = self.head(h_j)
-        return (h_i, z_i), (h_j, z_j)
+    def mono_forward(self, x):
+        h = self.backbone(x)
+        z = self.head(h)
+        return z
 

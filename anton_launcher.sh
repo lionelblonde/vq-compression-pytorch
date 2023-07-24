@@ -14,7 +14,7 @@ python main.py \
     --lr 1e-3 \
     --wd 1e-4 \
     --clip_norm 0 \
-    --algo_handle 'bigearthnet_simclr' \
+    --algo_handle 'simclr' \
     --no-linear_probe \
     --fc_hid_dim 128 \
     --backbone resnet18 \

@@ -28,7 +28,7 @@ wd: 1e-4
 clip_norm: 0
 
 # algo
-algo_handle: 'bigearthnet_simclr'
+algo_handle: 'simclr'
 
 # model architecture
 backbone: 'resnet101'

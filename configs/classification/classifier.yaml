@@ -21,6 +21,7 @@ num_workers: 4
 epochs: 100
 batch_size: 128
 save_freq: 1
+eval_every: 100
 
 # opt
 lr: 3e-4
@@ -28,7 +29,7 @@ wd: 2e-5
 clip_norm: 0
 
 # algo
-algo_handle: 'bigearthnet_classifier'
+algo_handle: 'classifier'
 
 # model architecture
 backbone: 'resnet101'

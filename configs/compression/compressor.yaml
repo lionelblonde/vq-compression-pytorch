@@ -20,6 +20,7 @@ test_split: 0.25
 epochs: 100
 batch_size: 128
 save_freq: 1
+eval_every: 100
 
 # opt
 lr: 1e-4
@@ -27,7 +28,7 @@ wd: 0.
 clip_norm: 0
 
 # algo
-algo_handle: 'bigearthnet_compressor'
+algo_handle: 'compressor'
 
 # opt 2
 max_lr: 1e-3

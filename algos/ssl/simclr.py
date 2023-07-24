@@ -48,7 +48,9 @@ class SimCLR(object):
             fc_out_dim=self.hps.fc_out_dim,
         ).to(self.device)
 
-        self.criterion = NTXentLoss().to(self.device)
+        self.criterion = NTXentLoss()
+        self.sim = nn.CosineSimilarity(dim=2)
+        self.bce = nn.BCEWithLogitsLoss()
 
         self.opt = torch.optim.Adam(
             add_weight_decay(self.model, weight_decay=self.hps.wd),
@@ -90,7 +92,7 @@ class SimCLR(object):
         wandb_dict['epoch'] = self.epochs_so_far
         wandb.log(wandb_dict, step=self.iters_so_far)
 
-    def train(self, train_dataloader, knn_dataloader, val_dataloader):
+    def train(self, train_dataloader, val_dataloader, knn_dataloader):
 
         acc_grad_steps = 8  # TODO: make this a hp
 
@@ -137,21 +139,55 @@ class SimCLR(object):
 
                 self.model.eval()
 
-                # TODO: build the feature bank here
+                h_bank, label_bank = [], []
 
+                temperature = 0.5
+                k = 50
 
-                # v_x_i, v_x_j = [e.squeeze() for e in torch.tensor_split(v_x, 2, dim=1)]
-                #
-                # if self.hps.cuda:
-                #     v_x_i = v_x_i.pin_memory().to(self.device, non_blocking=True)
-                #     v_x_j = v_x_j.pin_memory().to(self.device, non_blocking=True)
-                # else:
-                #     v_x_i, v_x_j = v_x_i.to(self.device), v_x_j.to(self.device)
-                #
-                # v_metrics, _ = self.compute_loss(v_x_i, v_x_j)
-                #
-                # self.send_to_dash(v_metrics, mode='val')
-                # del v_metrics
+                with torch.no_grad():
+
+                    for j, (k_x, k_true_y) in enumerate(knn_dataloader):
+                        if j >= 10:
+                            break  # takes too long otherwise; shuffle is on
+                        if self.hps.cuda:
+                            k_x = k_x.pin_memory().to(self.device, non_blocking=True)
+                        else:
+                            k_x = k_x.to(self.device)
+                        k_h = self.model.mono_forward(k_x)
+                        h_bank.append(k_h)
+                        label_bank.append(k_true_y)
+                    h_bank = torch.cat(h_bank, dim=0)  # size: (NxD)
+                    label_bank = torch.cat(label_bank, dim=0)  # size: (NxC)
+
+                    if self.hps.cuda:
+                        v_x = v_x.pin_memory().to(self.device, non_blocking=True)
+                        v_true_y = v_true_y.pin_memory().to(self.device, non_blocking=True)
+                    else:
+                        v_x, v_true_y = v_x.to(self.device), v_true_y.to(self.device)
+
+                    v_h = self.model.mono_forward(v_x)  # size: (BxD)
+
+                    sim = self.sim(v_h.unsqueeze(1), h_bank.unsqueeze(0)) / temperature
+                    # sizes: (BxD), (NxD) -> (BxN) with the sim reduction along dim 2
+
+                    sim_weights, sim_indices = sim.topk(k=k, dim=-1)  # only keep k closest images
+                    # size: (BxK) by keeping only a subset of the N's
+
+                    # look for the labels of the k closest images
+                    pre_gather = label_bank.unsqueeze(0).repeat(self.hps.batch_size, 1, 1).to(self.device)
+                    new_indices = sim_indices.unsqueeze(-1).repeat(1, 1, 43)
+
+                    sim_labels = torch.gather(pre_gather, dim=1, index=new_indices)
+                    # size: (BxKxC) by selecting the K indices within dim 1 of the expansion (BxNxC)
+
+                    sim_weighted_labels = (sim_labels * sim_weights.exp().unsqueeze(-1)).sum(dim=1)
+
+                    v_loss = self.bce(sim_weighted_labels, v_true_y)
+
+                    v_metrics = {'loss': v_loss.item()}
+
+                    self.send_to_dash(v_metrics, mode='val')
+                    del v_metrics
 
                 self.model.train()
 

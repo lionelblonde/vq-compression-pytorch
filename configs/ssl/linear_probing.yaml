@@ -21,6 +21,7 @@ num_workers: 4
 epochs: -1
 batch_size: 128
 save_freq: 1
+eval_every: 200
 
 # opt
 lr: 1.0
@@ -28,7 +29,7 @@ wd: 0
 clip_norm: 0
 
 # algo
-algo_handle: 'bigearthnet_simclr'
+algo_handle: 'simclr'
 
 # model architecture
 backbone: 'resnet101'

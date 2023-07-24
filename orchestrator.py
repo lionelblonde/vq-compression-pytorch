@@ -26,6 +26,7 @@ def learn(
     experiment_name,
     num_transforms,
     with_labels,
+    knn_eval,
 ):
 
     # Create context manager that records the time taken by encapsulated ops
@@ -49,6 +50,9 @@ def learn(
         dataloaders.append(get_dataloader(**tmpdict, split_path=paths_list[0], train_stage=True, shuffle=True))
         dataloaders.append(get_dataloader(**tmpdict, split_path=paths_list[1]))
         dataloaders.append(get_dataloader(**tmpdict, split_path=paths_list[2]))
+
+        if knn_eval:
+            dataloaders.append(get_dataloader(**tmpdict, split_path=paths_list[0], shuffle=True))
 
         for i, e in enumerate(dataloaders):
             # Log stats about the dataloaders
@@ -128,11 +132,20 @@ def learn(
 
         log_epoch_info(logger, algo.epochs_so_far, args.epochs, tstart)
 
-        algo.train(dataloaders[0], dataloaders[1])
+        if knn_eval:
+            algo.train(dataloaders[0], dataloaders[1], dataloaders[3])  # [2] is test
+        else:
+            algo.train(dataloaders[0], dataloaders[1])
 
         if algo.epochs_so_far % args.save_freq == 0:
             algo.save(ckpt_dir, algo.epochs_so_far)
 
+    if algo.epochs_so_far > 0:
+        # Save once we are done training
+        # (unless we have not done a single epoch of training)
+        algo.save(ckpt_dir, f"{algo.epochs_so_far}_done")
+        logger.info(f"we're done training. Saving model @: {ckpt_dir}")
+        logger.info("bye.")
 
     if args.linear_probe or args.fine_tuning:
         if args.linear_probe:
@@ -163,10 +176,4 @@ def learn(
     else:
         logger.info("testing")
         algo.test(dataloaders[2])
-
-        if algo.epochs_so_far > 0:
-            # Save once we are done, unless we have not done a single epoch of training
-            algo.save(ckpt_dir, f"{algo.epochs_so_far}_done")
-            logger.info(f"we're done. Saving model @: {ckpt_dir}")
-            logger.info("bye.")
 

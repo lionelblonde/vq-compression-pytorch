@@ -10,9 +10,10 @@ class NTXentLoss(nn.Module):
     Created as an alternative/improvement of the classical NCE loss of SimCLR
     """
 
-    def __init__(self, normalize_hidden=True, temperature=0.07):  # default value use in MoCo
+    def __init__(self, normalize_hidden=False, temperature=0.07):  # default value use in MoCo
         super().__init__()
         self.normalize_hidden = normalize_hidden
+        # the normalization is set to False by defaut because the cosine sim already normalizes
         self.temperature = temperature
         self.criterion = nn.CrossEntropyLoss(reduction="sum")  # we divide manually afterwards
         self.sim_f = nn.CosineSimilarity(dim=2)
@@ -29,6 +30,7 @@ class NTXentLoss(nn.Module):
 
         if self.normalize_hidden:
             z = nn.functional.normalize(z, p=2, dim=-1)
+            # here for legacy; useless because the cosine sim normalizes already
 
         sim = self.sim_f(z.unsqueeze(1), z.unsqueeze(0)) / self.temperature
 
