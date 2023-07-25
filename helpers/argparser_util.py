@@ -43,6 +43,7 @@ def agg_argparser():
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--wd", type=float, default=1e-6)
     parser.add_argument("--clip_norm", type=float, default=60.)
+    parser.add_argument("--acc_grad_steps", type=int, default=8)
     # algo
     parser.add_argument("--algo_handle", type=str, choices=[
         'classifier',
@@ -52,27 +53,26 @@ def agg_argparser():
 
     # >>>> classifier
 
-    # model architecture
     parser.add_argument("--backbone", type=str, default=None)
     boolean_flag(parser, "pretrained_w_imagenet", default=False)
     parser.add_argument("--fc_hid_dim", type=int, default=128)
 
     # >>>> simclr
 
-    # model architecture
     parser.add_argument("--fc_out_dim", type=int, default=64)
-    # fine-tuning or linear probing
+
+    parser.add_argument("--ntx_temp", type=float, default=0.07)
+
+    parser.add_argument("--load_checkpoint", type=str, default=None)
     boolean_flag(parser, "linear_probe", default=False)
     boolean_flag(parser, "fine_tuning", default=False)
     parser.add_argument("--finetune_probe_epochs", type=int, default=10)  # same as SimCLR
     parser.add_argument("--finetune_probe_batch_size", type=int, default=256)
-    parser.add_argument("--load_checkpoint", type=str, default=None)
 
     # >>>> compressor
 
-    # opt 2
     parser.add_argument("--max_lr", type=float, default=1e-3, help="max lr for OneCycleLR scheduler")
-    # model architecture
+
     parser.add_argument("--in_channels", type=int, default=3, help="input channels")
     parser.add_argument("--z_channels", type=int, default=32, help="channels in the latent z")
     parser.add_argument("--ae_hidden", type=int, default=128, help="channels in hid layers in enc/dec.")
@@ -80,10 +80,9 @@ def agg_argparser():
     parser.add_argument("--ae_kernel", type=int, default=4, help="size of kernel in down/up-sampling layers")
     parser.add_argument("--dsf", type=int, choices=[8, 4, 2, 1], default=8,
                         help="downsampling factor (1=no downsampling)")
-    # loss
     parser.add_argument("--alpha", type=float, default=1., help="weight of soft entropy loss in total")
     parser.add_argument("--beta", type=float, default=1., help="weight of entropy loss in total")
-    # centers
+
     parser.add_argument("--c_num", type=int, default=8, help="centers")
     parser.add_argument("--c_min", type=float, default=-2., help="initial min value of centers")
     parser.add_argument("--c_max", type=float, default=2., help="initial max value of centers")

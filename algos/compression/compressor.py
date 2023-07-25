@@ -74,8 +74,6 @@ class Compressor(object):
 
     def train(self, train_dataloader, val_dataloader):
 
-        acc_grad_steps = 8  # TODO: make this a hp
-
         agg_iterable = zip(
             tqdm(train_dataloader),
             itertools.chain.from_iterable(itertools.repeat(val_dataloader)),
@@ -91,11 +89,11 @@ class Compressor(object):
 
             with self.ctx:
                 t_metrics, t_loss, _ = self.compute_loss(t_x)
-                t_loss /= acc_grad_steps
+                t_loss /= self.hps.acc_grad_steps
 
             self.scaler.scale(t_loss).backward()
 
-            if ((i + 1) % acc_grad_steps == 0) or (i + 1 == len(train_dataloader)):
+            if ((i + 1) % self.hps.acc_grad_steps == 0) or (i + 1 == len(train_dataloader)):
 
                 if self.hps.clip_norm > 0:
                     self.scaler.unscale_(self.opt)
@@ -105,8 +103,6 @@ class Compressor(object):
                 self.scaler.update()
                 self.opt.zero_grad()
 
-                self.iters_so_far += 1
-
                 self.send_to_dash(t_metrics, mode='train')
                 del t_metrics
 
@@ -114,15 +110,17 @@ class Compressor(object):
 
                 self.model.eval()
 
-                if self.hps.cuda:
-                    v_x = v_x.pin_memory().to(self.device, non_blocking=True)
-                else:
-                    v_x = v_x.to(self.device)
+                with torch.no_grad():
 
-                v_metrics, _, _ = self.compute_loss(v_x)
+                    if self.hps.cuda:
+                        v_x = v_x.pin_memory().to(self.device, non_blocking=True)
+                    else:
+                        v_x = v_x.to(self.device)
 
-                self.send_to_dash(v_metrics, mode='val')
-                del v_metrics
+                    v_metrics, _, _ = self.compute_loss(v_x)
+
+                    self.send_to_dash(v_metrics, mode='val')
+                    del v_metrics
 
                 self.model.train()
 
@@ -130,6 +128,7 @@ class Compressor(object):
                 last_lr = self.scheduler.get_last_lr()[0]
                 logger.info(f"lr is {last_lr} after {self.iters_so_far} gradient steps")
 
+            self.iters_so_far += 1
 
         self.epochs_so_far += 1
 
@@ -137,16 +136,19 @@ class Compressor(object):
 
         self.model.eval()
 
-        for x in tqdm(dataloader):
+        with torch.no_grad():
 
-            if self.hps.cuda:
-                x = x.pin_memory().to(self.device, non_blocking=True)
-            else:
-                x = x.to(self.device)
+            for x in tqdm(dataloader):
 
-            metrics, _, table = self.compute_loss(x)
+                if self.hps.cuda:
+                    x = x.pin_memory().to(self.device, non_blocking=True)
+                else:
+                    x = x.to(self.device)
 
-            self.send_to_dash(metrics, table, mode='test')
+                metrics, _, table = self.compute_loss(x)
+
+                self.send_to_dash(metrics, table, mode='test')
+                del metrics
 
         self.model.train()
 

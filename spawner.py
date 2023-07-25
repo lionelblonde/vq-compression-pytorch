@@ -140,6 +140,7 @@ class Spawner(object):
             'lr': self.config['lr'],
             'wd': self.config['wd'],
             'clip_norm': self.config['clip_norm'],
+            'acc_grad_steps': self.config['acc_grad_steps'],
 
             # algo
             'algo_handle': self.config['algo_handle'],
@@ -162,6 +163,8 @@ class Spawner(object):
                 'pretrained_w_imagenet': self.config['pretrained_w_imagenet'],
                 'fc_hid_dim': self.config['fc_hid_dim'],
                 'fc_out_dim': self.config['fc_out_dim'],
+                # algorithm
+                'ntx_temp': self.config['ntx_temp'],
                 # fine-tuning or linear probing
                 'linear_probe': self.config['linear_probe'],
                 'fine_tuning': self.config['fine_tuning'],

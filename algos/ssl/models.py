@@ -34,7 +34,6 @@ class SimCLRModel(nn.Module):
         return z_i, z_j
 
     def mono_forward(self, x):
-        h = self.backbone(x)
-        z = self.head(h)
+        z = self.head(self.backbone(x))
         return z
 

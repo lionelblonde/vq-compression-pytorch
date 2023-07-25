@@ -15,7 +15,7 @@ dataset_handle: 'bigearthnet'
 # data path is handled by the spawner w/ an environ variable
 val_split: 0.25
 test_split: 0.25
-num_workers: 0 # no parallelism in dataloader, PyTorch bug
+num_workers: 4 # 0: no parallelism in dataloader, PyTorch bug
 
 # training
 epochs: 100
@@ -27,8 +27,9 @@ eval_every: 200
 lr: 3e-4
 wd: 1e-4
 clip_norm: 0
+acc_grad_steps: 8
 
-# algo
+# algorithm choice
 algo_handle: 'simclr'
 
 # model architecture
@@ -36,6 +37,9 @@ backbone: 'resnet101'
 pretrained_w_imagenet: true
 fc_hid_dim: 128
 fc_out_dim: 64
+
+# algorithm
+ntx_temp: 0.07
 
 # fine-tuning or linear probing
 linear_probe: false

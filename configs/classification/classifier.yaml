@@ -27,6 +27,7 @@ eval_every: 100
 lr: 3e-4
 wd: 2e-5
 clip_norm: 0
+acc_grad_steps: 8
 
 # algo
 algo_handle: 'classifier'

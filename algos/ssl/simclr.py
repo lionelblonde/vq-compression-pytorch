@@ -48,7 +48,7 @@ class SimCLR(object):
             fc_out_dim=self.hps.fc_out_dim,
         ).to(self.device)
 
-        self.criterion = NTXentLoss()
+        self.criterion = NTXentLoss(temperature=self.hps.ntx_temp)
         self.sim = nn.CosineSimilarity(dim=2)
         self.bce = nn.BCEWithLogitsLoss()
 
@@ -94,8 +94,6 @@ class SimCLR(object):
 
     def train(self, train_dataloader, val_dataloader, knn_dataloader):
 
-        acc_grad_steps = 8  # TODO: make this a hp
-
         agg_iterable = zip(
             tqdm(train_dataloader),
             itertools.chain.from_iterable(itertools.repeat(val_dataloader)),
@@ -114,11 +112,11 @@ class SimCLR(object):
 
             with self.ctx:
                 t_metrics, t_loss = self.compute_loss(t_x_i, t_x_j)
-                t_loss /= acc_grad_steps
+                t_loss /= self.hps.acc_grad_steps
 
             self.scaler.scale(t_loss).backward()
 
-            if ((i + 1) % acc_grad_steps == 0) or (i + 1 == len(train_dataloader)):
+            if ((i + 1) % self.hps.acc_grad_steps == 0) or (i + 1 == len(train_dataloader)):
 
                 if self.hps.clip_norm > 0:
                     self.scaler.unscale_(self.opt)
@@ -130,8 +128,6 @@ class SimCLR(object):
 
                 self.scheduler.step()  # update lr
 
-                self.iters_so_far += 1
-
                 self.send_to_dash(t_metrics, mode='train')
                 del t_metrics
 
@@ -139,13 +135,12 @@ class SimCLR(object):
 
                 self.model.eval()
 
-                h_bank, label_bank = [], []
-
-                temperature = 0.5
-                k = 50
-
                 with torch.no_grad():
 
+                    z_bank = []
+                    y_bank = []
+
+                    logger.info("building bank")
                     for j, (k_x, k_true_y) in enumerate(knn_dataloader):
                         if j >= 10:
                             break  # takes too long otherwise; shuffle is on
@@ -153,11 +148,13 @@ class SimCLR(object):
                             k_x = k_x.pin_memory().to(self.device, non_blocking=True)
                         else:
                             k_x = k_x.to(self.device)
-                        k_h = self.model.mono_forward(k_x)
-                        h_bank.append(k_h)
-                        label_bank.append(k_true_y)
-                    h_bank = torch.cat(h_bank, dim=0)  # size: (NxD)
-                    label_bank = torch.cat(label_bank, dim=0)  # size: (NxC)
+                        k_z = self.model.mono_forward(k_x)
+                        z_bank.append(k_z)
+                        y_bank.append(k_true_y)
+                    logger.info("bank built")
+                    num_classes = k_true_y.size(-1)  # using the last label loaded
+                    z_bank = torch.cat(z_bank, dim=0).to(self.device)  # size: (NxD)
+                    y_bank = torch.cat(y_bank, dim=0).to(self.device)  # size: (NxC)
 
                     if self.hps.cuda:
                         v_x = v_x.pin_memory().to(self.device, non_blocking=True)
@@ -165,24 +162,25 @@ class SimCLR(object):
                     else:
                         v_x, v_true_y = v_x.to(self.device), v_true_y.to(self.device)
 
-                    v_h = self.model.mono_forward(v_x)  # size: (BxD)
+                    v_z = self.model.mono_forward(v_x)  # size: (BxD)
 
-                    sim = self.sim(v_h.unsqueeze(1), h_bank.unsqueeze(0)) / temperature
+                    sim = self.sim(v_z.unsqueeze(1), z_bank.unsqueeze(0)) / 0.25  # temperature
                     # sizes: (BxD), (NxD) -> (BxN) with the sim reduction along dim 2
 
-                    sim_weights, sim_indices = sim.topk(k=k, dim=-1)  # only keep k closest images
+                    sim_weights, sim_indices = sim.topk(k=50, dim=-1)  # only keep k closest images
                     # size: (BxK) by keeping only a subset of the N's
 
                     # look for the labels of the k closest images
-                    pre_gather = label_bank.unsqueeze(0).repeat(self.hps.batch_size, 1, 1).to(self.device)
-                    new_indices = sim_indices.unsqueeze(-1).repeat(1, 1, 43)
-
-                    sim_labels = torch.gather(pre_gather, dim=1, index=new_indices)
+                    sim_y = torch.gather(
+                        y_bank.unsqueeze(0).repeat(self.hps.batch_size, 1, 1),
+                        dim=1,
+                        index=sim_indices.unsqueeze(-1).repeat(1, 1, num_classes),
+                    )
                     # size: (BxKxC) by selecting the K indices within dim 1 of the expansion (BxNxC)
 
-                    sim_weighted_labels = (sim_labels * sim_weights.exp().unsqueeze(-1)).sum(dim=1)
+                    sim_weighted_y = (sim_y * sim_weights.exp().unsqueeze(-1)).sum(dim=1)
 
-                    v_loss = self.bce(sim_weighted_labels, v_true_y)
+                    v_loss = self.bce(sim_weighted_y, v_true_y)
 
                     v_metrics = {'loss': v_loss.item()}
 
@@ -195,24 +193,66 @@ class SimCLR(object):
                 last_lr = self.scheduler.get_last_lr()[0]
                 logger.info(f"lr ={last_lr} after {self.iters_so_far} gradient steps")
 
+            self.iters_so_far += 1
+
         self.epochs_so_far += 1
 
-    def test(self, dataloader):
+    def test(self, test_dataloader, knn_dataloader):
         self.model.eval()
 
-        for x, _ in tqdm(dataloader):
+        with torch.no_grad():
 
-            x_i, x_j = [e.squeeze() for e in torch.tensor_split(x, 2, dim=1)]
+            z_bank = []
+            y_bank = []
 
-            if self.hps.cuda:
-                x_i = x_i.pin_memory().to(self.device, non_blocking=True)
-                x_j = x_j.pin_memory().to(self.device, non_blocking=True)
-            else:
-                x_i, x_j = x_i.to(self.device), x_j.to(self.device)
+            logger.info("building bank")  # compared to val, only need to build once
+            for j, (k_x, k_true_y) in enumerate(knn_dataloader):
+                if j >= 10:
+                    break  # takes too long otherwise; shuffle is on
+                if self.hps.cuda:
+                    k_x = k_x.pin_memory().to(self.device, non_blocking=True)
+                else:
+                    k_x = k_x.to(self.device)
+                k_z = self.model.mono_forward(k_x)
+                z_bank.append(k_z)
+                y_bank.append(k_true_y)
+            logger.info("bank built")
+            num_classes = k_true_y.size(-1)  # using the last label loaded
+            z_bank = torch.cat(z_bank, dim=0)  # size: (NxD)
+            y_bank = torch.cat(y_bank, dim=0)  # size: (NxC)
 
-            metrics, _ = self.compute_loss(x_i, x_j)
+            for x, true_y in tqdm(test_dataloader):
 
-            self.send_to_dash(metrics, mode='test')
+                if self.hps.cuda:
+                    x = x.pin_memory().to(self.device, non_blocking=True)
+                    true_y = true_y.pin_memory().to(self.device, non_blocking=True)
+                else:
+                    x, true_y = x.to(self.device), true_y.to(self.device)
+
+                z = self.model.mono_forward(x)  # size: (BxD)
+
+                sim = self.sim(z.unsqueeze(1), z_bank.unsqueeze(0)) / 0.25  # temperature
+                # sizes: (BxD), (NxD) -> (BxN) with the sim reduction along dim 2
+
+                sim_weights, sim_indices = sim.topk(k=50, dim=-1)  # only keep k closest images
+                # size: (BxK) by keeping only a subset of the N's
+
+                # look for the labels of the k closest images
+                sim_y = torch.gather(
+                    y_bank.unsqueeze(0).repeat(self.hps.batch_size, 1, 1),
+                    dim=1,
+                    index=sim_indices.unsqueeze(-1).repeat(1, 1, num_classes),
+                )
+                # size: (BxKxC) by selecting the K indices within dim 1 of the expansion (BxNxC)
+
+                sim_weighted_y = (sim_y * sim_weights.exp().unsqueeze(-1)).sum(dim=1)
+
+                loss = self.bce(sim_weighted_y, true_y)
+
+                metrics = {'loss': loss.item()}
+
+                self.send_to_dash(metrics, mode='test')
+                del metrics
 
         self.model.train()
 
@@ -289,8 +329,6 @@ class SimCLR(object):
 
         # FROM HERE ONWARDS, SEMANTICALLY A PRIORI IDENTICAL TO THE CLASSIFIER
 
-        acc_grad_steps = 8  # TODO: make this a hp
-
         agg_iterable = zip(
             tqdm(train_dataloader),
             itertools.chain.from_iterable(itertools.repeat(val_dataloader)),
@@ -307,17 +345,15 @@ class SimCLR(object):
 
             with self.new_ctx:
                 t_metrics, t_loss, _ = self.compute_classifier_loss(t_x, t_true_y)
-                t_loss /= acc_grad_steps
+                t_loss /= self.hps.acc_grad_steps
 
             self.new_scaler.scale(t_loss).backward()
 
-            if ((i + 1) % acc_grad_steps == 0) or (i + 1 == len(train_dataloader)):
+            if ((i + 1) % self.hps.acc_grad_steps == 0) or (i + 1 == len(train_dataloader)):
 
                 self.new_scaler.step(self.new_opt)
                 self.new_scaler.update()
                 self.new_opt.zero_grad()
-
-                self.iters_so_far += 1
 
                 self.send_to_dash(t_metrics, mode=f"{special_key}-train")
                 del t_metrics
@@ -326,23 +362,27 @@ class SimCLR(object):
 
                 self.model.eval()
 
-                if self.hps.cuda:
-                    v_x = v_x.pin_memory().to(self.device, non_blocking=True)
-                    v_true_y = v_true_y.pin_memory().to(self.device, non_blocking=True)
-                else:
-                    v_x, v_true_y = v_x.to(self.device), v_true_y.to(self.device)
+                with torch.no_grad():
 
-                v_metrics, _, v_pred_y = self.compute_classifier_loss(v_x, v_true_y)
+                    if self.hps.cuda:
+                        v_x = v_x.pin_memory().to(self.device, non_blocking=True)
+                        v_true_y = v_true_y.pin_memory().to(self.device, non_blocking=True)
+                    else:
+                        v_x, v_true_y = v_x.to(self.device), v_true_y.to(self.device)
 
-                # compute evaluation scores
-                v_pred_y = (v_pred_y > 0.5).float()
-                v_pred_y, v_true_y = v_pred_y.detach().cpu().numpy(), v_true_y.detach().cpu().numpy()
-                v_metrics.update(compute_classif_eval_metrics(v_true_y, v_pred_y))
+                    v_metrics, _, v_pred_y = self.compute_classifier_loss(v_x, v_true_y)
 
-                self.send_to_dash(v_metrics, mode=f"{special_key}-val")
-                del v_metrics
+                    # compute evaluation scores
+                    v_pred_y = (v_pred_y > 0.5).float()
+                    v_pred_y, v_true_y = v_pred_y.detach().cpu().numpy(), v_true_y.detach().cpu().numpy()
+                    v_metrics.update(compute_classif_eval_metrics(v_true_y, v_pred_y))
+
+                    self.send_to_dash(v_metrics, mode=f"{special_key}-val")
+                    del v_metrics
 
                 self.model.train()
+
+            self.iters_so_far += 1
 
         self.epochs_so_far += 1
 
@@ -356,23 +396,25 @@ class SimCLR(object):
 
         self.model.eval()
 
-        for x, true_y in tqdm(dataloader):
+        with torch.no_grad():
 
-            if self.hps.cuda:
-                x = x.pin_memory().to(self.device, non_blocking=True)
-                true_y = true_y.pin_memory().to(self.device, non_blocking=True)
-            else:
-                x, true_y = x.to(self.device), true_y.to(self.device)
+            for x, true_y in tqdm(dataloader):
 
-            metrics, _, pred_y = self.compute_loss(x, true_y)
+                if self.hps.cuda:
+                    x = x.pin_memory().to(self.device, non_blocking=True)
+                    true_y = true_y.pin_memory().to(self.device, non_blocking=True)
+                else:
+                    x, true_y = x.to(self.device), true_y.to(self.device)
 
-            # compute evaluation scores
-            pred_y = (pred_y > 0.).long()
-            pred_y, true_y = pred_y.detach().cpu().numpy(), true_y.detach().cpu().numpy()
-            metrics.update(compute_classif_eval_metrics(true_y, pred_y))
+                metrics, _, pred_y = self.compute_loss(x, true_y)
 
-            self.send_to_dash(metrics, mode=f"{special_key}-test")
-            del metrics
+                # compute evaluation scores
+                pred_y = (pred_y > 0.).long()
+                pred_y, true_y = pred_y.detach().cpu().numpy(), true_y.detach().cpu().numpy()
+                metrics.update(compute_classif_eval_metrics(true_y, pred_y))
+
+                self.send_to_dash(metrics, mode=f"{special_key}-test")
+                del metrics
 
         self.model.train()
 

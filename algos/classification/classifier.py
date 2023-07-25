@@ -75,8 +75,6 @@ class Classifier(object):
 
     def train(self, train_dataloader, val_dataloader):
 
-        acc_grad_steps = 8  # TODO: make this a hp
-
         agg_iterable = zip(
             tqdm(train_dataloader),
             itertools.chain.from_iterable(itertools.repeat(val_dataloader)),
@@ -93,11 +91,11 @@ class Classifier(object):
 
             with self.ctx:
                 t_metrics, t_loss, _ = self.compute_loss(t_x, t_true_y)
-                t_loss /= acc_grad_steps
+                t_loss /= self.hps.acc_grad_steps
 
             self.scaler.scale(t_loss).backward()
 
-            if ((i + 1) % acc_grad_steps == 0) or (i + 1 == len(train_dataloader)):
+            if ((i + 1) % self.hps.acc_grad_steps == 0) or (i + 1 == len(train_dataloader)):
 
                 if self.hps.clip_norm > 0:
                     self.scaler.unscale_(self.opt)
@@ -107,8 +105,6 @@ class Classifier(object):
                 self.scaler.update()
                 self.opt.zero_grad()
 
-                self.iters_so_far += 1
-
                 self.send_to_dash(t_metrics, mode='train')
                 del t_metrics
 
@@ -116,21 +112,23 @@ class Classifier(object):
 
                 self.model.eval()
 
-                if self.hps.cuda:
-                    v_x = v_x.pin_memory().to(self.device, non_blocking=True)
-                    v_true_y = v_true_y.pin_memory().to(self.device, non_blocking=True)
-                else:
-                    v_x, v_true_y = v_x.to(self.device), v_true_y.to(self.device)
+                with torch.no_grad():
 
-                v_metrics, _, v_pred_y = self.compute_loss(v_x, v_true_y)
+                    if self.hps.cuda:
+                        v_x = v_x.pin_memory().to(self.device, non_blocking=True)
+                        v_true_y = v_true_y.pin_memory().to(self.device, non_blocking=True)
+                    else:
+                        v_x, v_true_y = v_x.to(self.device), v_true_y.to(self.device)
 
-                # compute evaluation scores
-                v_pred_y = (v_pred_y > 0.).long()
-                v_pred_y, v_true_y = v_pred_y.detach().cpu().numpy(), v_true_y.detach().cpu().numpy()
-                v_metrics.update(compute_classif_eval_metrics(v_true_y, v_pred_y))
+                    v_metrics, _, v_pred_y = self.compute_loss(v_x, v_true_y)
 
-                self.send_to_dash(v_metrics, mode='val')
-                del v_metrics
+                    # compute evaluation scores
+                    v_pred_y = (v_pred_y > 0.).long()
+                    v_pred_y, v_true_y = v_pred_y.detach().cpu().numpy(), v_true_y.detach().cpu().numpy()
+                    v_metrics.update(compute_classif_eval_metrics(v_true_y, v_pred_y))
+
+                    self.send_to_dash(v_metrics, mode='val')
+                    del v_metrics
 
                 self.model.train()
 
@@ -138,29 +136,33 @@ class Classifier(object):
                 last_lr = self.scheduler.get_last_lr()[0]
                 logger.info(f"lr ={last_lr} after {self.iters_so_far} gradient steps")
 
+            self.iters_so_far += 1
+
         self.epochs_so_far += 1
 
     def test(self, dataloader):
 
         self.model.eval()
 
-        for x, true_y in tqdm(dataloader):
+        with torch.no_grad():
 
-            if self.hps.cuda:
-                x = x.pin_memory().to(self.device, non_blocking=True)
-                true_y = true_y.pin_memory().to(self.device, non_blocking=True)
-            else:
-                x, true_y = x.to(self.device), true_y.to(self.device)
+            for x, true_y in tqdm(dataloader):
 
-            metrics, _, pred_y = self.compute_loss(x, true_y)
+                if self.hps.cuda:
+                    x = x.pin_memory().to(self.device, non_blocking=True)
+                    true_y = true_y.pin_memory().to(self.device, non_blocking=True)
+                else:
+                    x, true_y = x.to(self.device), true_y.to(self.device)
 
-            # compute evaluation scores
-            pred_y = (pred_y > 0.).long()
-            pred_y, true_y = pred_y.detach().cpu().numpy(), true_y.detach().cpu().numpy()
-            metrics.update(compute_classif_eval_metrics(true_y, pred_y))
+                metrics, _, pred_y = self.compute_loss(x, true_y)
 
-            self.send_to_dash(metrics, mode='test')
-            del metrics
+                # compute evaluation scores
+                pred_y = (pred_y > 0.).long()
+                pred_y, true_y = pred_y.detach().cpu().numpy(), true_y.detach().cpu().numpy()
+                metrics.update(compute_classif_eval_metrics(true_y, pred_y))
+
+                self.send_to_dash(metrics, mode='test')
+                del metrics
 
         self.model.train()
 
