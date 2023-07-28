@@ -11,7 +11,7 @@ python main.py \
     --epoch 100 \
     --batch_size 128 \
     --save_freq 1 \
-    --eval_every 1 \
+    --eval_every 100 \
     --lr 1e-3 \
     --wd 1e-4 \
     --clip_norm 0 \

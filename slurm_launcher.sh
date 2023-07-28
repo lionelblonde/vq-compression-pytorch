@@ -2,7 +2,7 @@
 
 # export DATASET_DIR=/srv/beegfs/scratch/shares/dmml/eo4eu/datasets
 export DATASET_DIR=/share/users/${USER:0:1}/${USER}
-export MODEL_DIR=/home/users/b/blondeli/Code/geo-pytorch/data/checkpoints/phupu_weerer_ceeree.gitSHA_ccb2418.bigearthnet_simclr_1.seed00
+export MODEL_DIR=/home/users/b/blondeli/Code/geo-pytorch/data/checkpoints/weepoo_zoofer_shoophu.gitSHA_81c7d86.simclr_1.seed00
 # the latter var is not alawys used but need be here for some configs
 
 python spawner.py \
@@ -10,7 +10,7 @@ python spawner.py \
     --conda_env geocuda \
     --deployment slurm \
     --num_seeds 2 \
-    --caliber long \
+    --caliber veryverylong \
     --deploy_now \
     --no-sweep \
     --no-wandb_upgrade \

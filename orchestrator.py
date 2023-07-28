@@ -175,5 +175,5 @@ def learn(
 
     else:
         logger.info("testing")
-        algo.test(dataloaders[2])
+        algo.test(dataloaders[2], dataloaders[3])
 
