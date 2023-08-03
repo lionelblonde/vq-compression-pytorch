@@ -52,11 +52,23 @@ class SimCLR(object):
         self.sim = nn.CosineSimilarity(dim=2).to(self.device)
         self.bce = nn.BCEWithLogitsLoss().to(self.device)
 
+
+
+
+
+
+
         self.opt = torch.optim.Adam(
             add_weight_decay(self.model, weight_decay=self.hps.wd),
             lr=self.hps.lr,
             weight_decay=0.,  # added on per-param basis in groups manually
         )  # upgrade: "decay the learning rate with the cosine decay schedule without restarts"
+
+
+
+
+
+
 
         self.ctx = (
             torch.amp.autocast(device_type='cuda', dtype=torch.float16 if self.hps.fp16 else torch.float32)
