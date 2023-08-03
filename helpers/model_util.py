@@ -1,4 +1,3 @@
-import torch.nn as nn
 import torchvision
 
 
@@ -34,23 +33,20 @@ def add_weight_decay(
     # not only does it prep for wd, but also for LARS opt
     model,
     weight_decay,
-    skip_list=(nn.InstanceNorm1d, nn.BatchNorm1d,
-               nn.InstanceNorm2d, nn.BatchNorm2d),
-    using_lars=False,
+    skip_list=(),
 ):
     decay = []
     no_decay = []
-    for module in model.modules():
-        if not using_lars:
-            params = [p for p in module.parameters() if p.requires_grad]
+
+    for n, p in model.named_parameters():
+        if not p.requires_grad:
+            continue
+        if (len(p.size()) == 1 or n in skip_list):
+            # covers batchnorm params and biases
+            # or obviously is named by name in skip list
+            no_decay.append(p)
         else:
-            # if using LARS, also remove the biases
-            params = [p for n, p in module.named_parameters()
-                      if (p.requires_grad and "bias" not in n)]
-        if isinstance(module, skip_list):
-            no_decay.extend(params)
-        else:
-            decay.extend(params)
+            decay.append(p)
     return [
         {'params': no_decay,
          'weight_decay': 0.,

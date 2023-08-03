@@ -19,6 +19,7 @@ from helpers.metrics_util import compute_classif_eval_metrics
 from helpers.model_util import add_weight_decay
 from algos.ssl.models import SimCLRModel
 from algos.ssl.ntx_ent_loss import NTXentLoss
+from algos.ssl.lars import LARSWrapper
 
 
 debug_lvl = os.environ.get('DEBUG_LVL', 0)
@@ -52,23 +53,32 @@ class SimCLR(object):
         self.sim = nn.CosineSimilarity(dim=2).to(self.device)
         self.bce = nn.BCEWithLogitsLoss().to(self.device)
 
-
-
-
-
-
-
-        self.opt = torch.optim.Adam(
-            add_weight_decay(self.model, weight_decay=self.hps.wd),
-            lr=self.hps.lr,
-            weight_decay=0.,  # added on per-param basis in groups manually
-        )  # upgrade: "decay the learning rate with the cosine decay schedule without restarts"
-
-
-
-
-
-
+        layerwise_lr_adaption = True  # can do better
+        if not layerwise_lr_adaption:
+            self.opt = torch.optim.Adam(
+                add_weight_decay(
+                    self.model,
+                    weight_decay=self.hps.wd,
+                ),
+                lr=self.hps.lr,
+                weight_decay=0.,  # added on per-param basis in groups manually
+            )  # upgrade: "decay the learning rate with the cosine decay schedule without restarts"
+        else:
+            self.opt = torch.optim.SGD(
+                add_weight_decay(
+                    self.model,
+                    weight_decay=self.hps.wd,
+                ),
+                lr=2.4,
+                momentum=0.9,
+                nesterov=False,
+                weight_decay=0.,  # added on per-param basis in groups manually
+            )  # upgrade: "decay the learning rate with the cosine decay schedule without restarts"
+            self.opt = LARSWrapper(
+                opt=self.opt,
+                trust_coeff=1e-3,
+            )  # wrap with the LARC-inspired LARS wrapper
+            logger.info("using LARS optimizer wrapper")
 
         self.ctx = (
             torch.amp.autocast(device_type='cuda', dtype=torch.float16 if self.hps.fp16 else torch.float32)
@@ -309,18 +319,22 @@ class SimCLR(object):
         self.new_criterion = nn.BCEWithLogitsLoss().to(self.device)
 
         if self.hps.linear_probe:
-            self.new_opt = torch.optim.Adam(
+            self.new_opt = torch.optim.SGD(
                 add_weight_decay(self.new_head, weight_decay=2e-5),
                 # this optimizer can only update the probe/new head!
                 weight_decay=0.,  # added on per-param basis in groups manually
-                lr=1e-3,
+                lr=1.6,
+                momentum=0.9,
+                nesterov=True,
             )
         else:  # then `self.hps.fine_tuning` is True
-            self.new_opt = torch.optim.Adam(
+            self.new_opt = torch.optim.SGD(
                 add_weight_decay(self.model, weight_decay=2e-5),
                 # this optimizer can update the entire model! => we use a lower lr
                 weight_decay=0.,  # added on per-param basis in groups manually
-                lr=1e-4,
+                lr=0.8,
+                momentum=0.9,
+                nesterov=True,
             )
 
         self.new_ctx = (
