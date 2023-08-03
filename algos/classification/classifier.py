@@ -120,21 +120,19 @@ class Classifier(object):
                     else:
                         v_x, v_true_y = v_x.to(self.device), v_true_y.to(self.device)
 
-                    v_metrics, _, v_pred_y = self.compute_loss(v_x, v_true_y)
+                    with self.ctx:
 
-                    # compute evaluation scores
-                    v_pred_y = (v_pred_y > 0.).long()
-                    v_pred_y, v_true_y = v_pred_y.detach().cpu().numpy(), v_true_y.detach().cpu().numpy()
-                    v_metrics.update(compute_classif_eval_metrics(v_true_y, v_pred_y))
+                        v_metrics, _, v_pred_y = self.compute_loss(v_x, v_true_y)
+
+                        # compute evaluation scores
+                        v_pred_y = (v_pred_y >= 0.).long()
+                        v_pred_y, v_true_y = v_pred_y.detach().cpu().numpy(), v_true_y.detach().cpu().numpy()
+                        v_metrics.update(compute_classif_eval_metrics(v_true_y, v_pred_y))
 
                     self.send_to_dash(v_metrics, mode='val')
                     del v_metrics
 
                 self.model.train()
-
-            if DEBUG:
-                last_lr = self.scheduler.get_last_lr()[0]
-                logger.info(f"lr ={last_lr} after {self.iters_so_far} gradient steps")
 
             self.iters_so_far += 1
 
@@ -154,23 +152,36 @@ class Classifier(object):
                 else:
                     x, true_y = x.to(self.device), true_y.to(self.device)
 
-                metrics, _, pred_y = self.compute_loss(x, true_y)
+                with self.ctx:
 
-                # compute evaluation scores
-                pred_y = (pred_y > 0.).long()
-                pred_y, true_y = pred_y.detach().cpu().numpy(), true_y.detach().cpu().numpy()
-                metrics.update(compute_classif_eval_metrics(true_y, pred_y))
+                    metrics, _, pred_y = self.compute_loss(x, true_y)
+
+                    # compute evaluation scores
+                    pred_y = (pred_y >= 0.).long()
+                    pred_y, true_y = pred_y.detach().cpu().numpy(), true_y.detach().cpu().numpy()
+                    metrics.update(compute_classif_eval_metrics(true_y, pred_y))
 
                 self.send_to_dash(metrics, mode='test')
                 del metrics
 
-        self.model.train()
+    def save_to_path(self, path, xtra=None):
+        suffix = f"model_{self.epochs_so_far}"
+        if xtra is not None:
+            suffix += f"_{xtra}"
+        suffix += ".tar"
+        path = Path(path) / suffix
+        torch.save({
+            'hps': self.hps,
+            'iters_so_far': self.iters_so_far,
+            'epochs_so_far': self.epochs_so_far,
+            # state_dict's
+            'model_state_dict': self.model.state_dict(),
+            'opt_state_dict': self.opt.state_dict(),
+        }, path)
 
-    def save(self, path, epochs_so_far):
-        model_dest_path = Path(path) / f"model_{epochs_so_far}.tar"
-        torch.save(self.model.state_dict(), model_dest_path)
-
-    def load(self, path, epochs_so_far):
-        model_orig_path = Path(path) / f"model_{epochs_so_far}.tar"
-        self.model.load_state_dict(torch.load(model_orig_path))
+    def load_from_path(self, path):
+        checkpoint = torch.load(path)
+        # the "strict" argument of `load_state_dict` is True by default
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.opt.load_state_dict(checkpoint['opt_state_dict'])
 

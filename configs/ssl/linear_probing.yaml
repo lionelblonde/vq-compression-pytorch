@@ -21,10 +21,10 @@ num_workers: 4
 epochs: -1
 batch_size: 128
 save_freq: 1
-eval_every: 100
+eval_every: 10
 
 # opt
-lr: 1.0
+lr: 3e-4
 wd: 0
 clip_norm: 0
 acc_grad_steps: 8
@@ -34,7 +34,7 @@ algo_handle: 'simclr'
 
 # model architecture
 backbone: 'resnet101'
-pretrained_w_imagenet: true
+pretrained_w_imagenet: false
 fc_hid_dim: 128
 fc_out_dim: 64
 
@@ -42,7 +42,7 @@ fc_out_dim: 64
 ntx_temp: 0.07
 
 # fine-tuning or linear probing
-load_checkpoint: 'model_3_done.tar'
+load_checkpoint: 'model_4_done.tar'
 linear_probe: true
 fine_tuning: false
 finetune_probe_epochs: 90

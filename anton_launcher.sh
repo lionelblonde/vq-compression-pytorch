@@ -8,7 +8,7 @@ python main.py \
     --dataset_handle bigearthnet \
     --val_split 0.25 \
     --test_split 0.25 \
-    --epoch 100 \
+    --epoch 0 \
     --batch_size 128 \
     --save_freq 1 \
     --eval_every 100 \
@@ -16,7 +16,7 @@ python main.py \
     --wd 1e-4 \
     --clip_norm 0 \
     --algo_handle 'simclr' \
-    --no-linear_probe \
+    --linear_probe \
     --fc_hid_dim 128 \
     --backbone resnet18 \
     --no-pretrained_w_imagenet \

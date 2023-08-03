@@ -91,13 +91,13 @@ def learn(
     ckpt_dir = Path(args.checkpoint_dir) / experiment_name
     Path.mkdir(ckpt_dir, exist_ok=True)
     # Save the model as a dry run, to avoid bad surprises at the end
-    algo.save(ckpt_dir, f"{algo.epochs_so_far}_dryrun")
+    algo.save_to_path(ckpt_dir, f"{algo.epochs_so_far}_dryrun")
     logger.info(f"dry run. Saving model @: {ckpt_dir}")
 
     # Handle timeout signal gracefully
     def timeout(signum, frame):
         # Save the model
-        algo.save(ckpt_dir, f"{algo.epochs_so_far}_timeout")
+        algo.save_to_path(ckpt_dir, f"{algo.epochs_so_far}_timeout")
         # No need to log a message, orterun stopped the trace already
         # No need to end the run by hand, SIGKILL is sent by orterun fast enough after SIGTERM
 
@@ -138,12 +138,12 @@ def learn(
             algo.train(dataloaders[0], dataloaders[1])
 
         if algo.epochs_so_far % args.save_freq == 0:
-            algo.save(ckpt_dir, algo.epochs_so_far)
+            algo.save_to_path(ckpt_dir, algo.epochs_so_far)
 
     if algo.epochs_so_far > 0:
         # Save once we are done training
         # (unless we have not done a single epoch of training)
-        algo.save(ckpt_dir, f"{algo.epochs_so_far}_done")
+        algo.save_to_path(ckpt_dir, xtra="done")
         logger.info(f"we're done training. Saving model @: {ckpt_dir}")
         logger.info("bye.")
 
@@ -167,7 +167,7 @@ def learn(
         algo.test_finetuned_or_probed_model(dataloaders_2[2])
 
         # Save once we are done
-        algo.save(ckpt_dir, f"{algo.epochs_so_far}_with_new_head_done")
+        algo.save_to_path(ckpt_dir, xtra="with_new_head_done")
         logger.info(f"we're done. Saving model @: {ckpt_dir}")
         logger.info("bye.")
 

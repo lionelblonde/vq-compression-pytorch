@@ -21,7 +21,7 @@ num_workers: 4
 epochs: 100
 batch_size: 128
 save_freq: 1
-eval_every: 100
+eval_every: 10
 
 # opt
 lr: 3e-4

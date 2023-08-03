@@ -172,8 +172,8 @@ class BigEarthNetDataset(Dataset):
 
         if self.data_augment_f is not None:
             output = torch.stack([
-                self.data_augment_f(torch.Tensor(data)),
-                self.data_augment_f(torch.Tensor(data)),  # two transforms
+                self.data_augment_f(data),
+                self.data_augment_f(data),  # two transforms
             ])
         else:
             output = data
