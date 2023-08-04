@@ -15,7 +15,7 @@ from torch.cuda.amp import grad_scaler as gs
 
 from helpers import logger
 from helpers.console_util import log_module_info
-from helpers.metrics_util import compute_classif_eval_metrics
+from helpers.metrics_util import compute_metrics
 from helpers.model_util import add_weight_decay
 from algos.ssl.models import SimCLRModel
 from algos.ssl.ntx_ent_loss import NTXentLoss
@@ -414,7 +414,7 @@ class SimCLR(object):
                         # compute evaluation scores
                         v_pred_y = (v_pred_y >= 0.).long()
                         v_pred_y, v_true_y = v_pred_y.detach().cpu().numpy(), v_true_y.detach().cpu().numpy()
-                        v_metrics.update(compute_classif_eval_metrics(v_true_y, v_pred_y))
+                        v_metrics.update(compute_metrics(v_pred_y, v_true_y))
 
                     self.send_to_dash(v_metrics, mode=f"{special_key}-val")
                     del v_metrics
@@ -450,7 +450,7 @@ class SimCLR(object):
                     # compute evaluation scores
                     pred_y = (pred_y >= 0.).long()
                     pred_y, true_y = pred_y.detach().cpu().numpy(), true_y.detach().cpu().numpy()
-                    metrics.update(compute_classif_eval_metrics(true_y, pred_y))
+                    metrics.update(compute_metrics(pred_y, true_y))
 
                 self.send_to_dash(metrics, mode=f"{special_key}-test")
                 del metrics

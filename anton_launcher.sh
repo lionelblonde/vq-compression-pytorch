@@ -11,11 +11,11 @@ python main.py \
     --epoch 9999 \
     --batch_size 128 \
     --save_freq 1 \
-    --eval_every 100 \
+    --eval_every 1 \
     --lr 1e-3 \
-    --wd 1e-4 \
+    --wd 0 \
     --clip_norm 0 \
-    --algo_handle 'simclr' \
+    --algo_handle 'classifier' \
     --linear_probe \
     --fc_hid_dim 128 \
     --backbone resnet18 \

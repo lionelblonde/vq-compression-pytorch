@@ -15,7 +15,7 @@ from torch.cuda.amp import grad_scaler as gs
 
 from helpers import logger
 from helpers.console_util import log_module_info
-from helpers.metrics_util import compute_classif_eval_metrics
+from helpers.metrics_util import compute_metrics, MetricsAggregator  # XXX
 from algos.classification.models import ClassifierModelTenChan
 
 
@@ -60,6 +60,8 @@ class Classifier(object):
 
         self.scaler = gs.GradScaler(enabled=self.hps.fp16)
 
+        self.metrics = MetricsAggregator(self.hps.num_classes, self.hps.batch_size)
+
         log_module_info(logger, 'classifier_model', self.model)
 
     def compute_loss(self, x, true_y):
@@ -80,6 +82,11 @@ class Classifier(object):
             itertools.chain.from_iterable(itertools.repeat(val_dataloader)),
             strict=False,
         )
+        balances = torch.Tensor(val_dataloader.balances)
+        if self.hps.cuda:
+            balances = balances.pin_memory().to(self.device, non_blocking=True)
+        else:
+            balances = balances.to(self.device)
 
         for i, ((t_x, t_true_y), (v_x, v_true_y)) in enumerate(agg_iterable):
 
@@ -121,14 +128,14 @@ class Classifier(object):
                         v_x, v_true_y = v_x.to(self.device), v_true_y.to(self.device)
 
                     with self.ctx:
-
                         v_metrics, _, v_pred_y = self.compute_loss(v_x, v_true_y)
-
                         # compute evaluation scores
                         v_pred_y = (v_pred_y >= 0.).long()
-                        v_pred_y, v_true_y = v_pred_y.detach().cpu().numpy(), v_true_y.detach().cpu().numpy()
-                        v_metrics.update(compute_classif_eval_metrics(v_true_y, v_pred_y))
-
+                        v_metrics.update(compute_metrics(
+                            v_pred_y, v_true_y,
+                            weights=balances,
+                        ))
+                        self.metrics.step(v_pred_y, v_true_y)
                     self.send_to_dash(v_metrics, mode='val')
                     del v_metrics
 
@@ -136,9 +143,17 @@ class Classifier(object):
 
             self.iters_so_far += 1
 
+        self.send_to_dash(self.metrics.compute(), mode='val-agg')
+        self.metrics.reset()
         self.epochs_so_far += 1
 
     def test(self, dataloader):
+
+        balances = torch.Tensor(dataloader.balances)
+        if self.hps.cuda:
+            balances = balances.pin_memory().to(self.device, non_blocking=True)
+        else:
+            balances = balances.to(self.device)
 
         self.model.eval()
 
@@ -153,16 +168,18 @@ class Classifier(object):
                     x, true_y = x.to(self.device), true_y.to(self.device)
 
                 with self.ctx:
-
                     metrics, _, pred_y = self.compute_loss(x, true_y)
-
                     # compute evaluation scores
                     pred_y = (pred_y >= 0.).long()
-                    pred_y, true_y = pred_y.detach().cpu().numpy(), true_y.detach().cpu().numpy()
-                    metrics.update(compute_classif_eval_metrics(true_y, pred_y))
-
+                    metrics.update(compute_metrics(
+                        pred_y, true_y,
+                        weights=balances,
+                    ))
+                    self.metrics.step(pred_y, true_y)
                 self.send_to_dash(metrics, mode='test')
                 del metrics
+
+        self.send_to_dash(self.metrics.compute(), mode='test-agg')
 
     def save_to_path(self, path, xtra=None):
         suffix = f"model_{self.epochs_so_far}"

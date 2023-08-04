@@ -10,6 +10,8 @@ class BigEarthNetDataloader(DataLoader):
     def __init__(self, dataset: BigEarthNetDataset, batch_size: int, *args, **kwargs):
         super().__init__(dataset, batch_size, *args, **kwargs)
         self.dataset_length = len(dataset)
+        if hasattr(dataset, 'balances'):
+            self.balances = dataset.balances
 
     def __len__(self):
         """Overwrite because relays the method of the `Dataset` class otherwise"""

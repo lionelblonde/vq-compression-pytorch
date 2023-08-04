@@ -10,6 +10,7 @@ import rasterio
 import torch
 from torch.utils.data import Dataset
 
+from helpers import logger
 from helpers.dataloader_utils import read_from_file, read_path_from_file, read_list_from_file, save2file
 from helpers.dataloader_utils.bigearthnet_utils.constants import BAND_NAMES, RGB_BANDS_NAMES, LABELS
 from helpers.dataloader_utils.bigearthnet_utils.constants import BANDS_10M, BANDS_20M, BAND_STATS
@@ -52,7 +53,7 @@ class BigEarthNetDataset(Dataset):
         assert 0 < truncate_at <= 100
         tot_len = len(read_from_file(self.split_path, data_path))
         self.truncate_at = int((truncate_at / 100.) * tot_len)  # transform the % to keep into the # of samples to keep
-        print(self.truncate_at, tot_len, f"{int(self.truncate_at) / tot_len * 100}%")  # sanity check
+        logger.info(f"{self.truncate_at} {tot_len} {int(self.truncate_at) / tot_len * 100}%")  # sanity check
 
         self.verify_bands(self.bands)
 
@@ -64,6 +65,17 @@ class BigEarthNetDataset(Dataset):
 
         if self.with_labels:
             self.labels = np.array(self.get_labels_as_multi_hot_vector())  # always load in memory whole
+            logger.info("we compute and plot the imbalance-ness now")
+            n_samples, n_classes = self.labels.shape
+            self.balances = self.labels.sum(axis=0) / n_samples
+            # do some nice plottings in ascii style
+            for c in range(n_classes):
+                balance = self.balances[c]
+                width = int(balance * 150)
+                bar = (f"class={str(c).zfill(3)}" +
+                       "[" + ("@" * width) + ("~" * (150 - width)) + "]" +
+                       f"< {balance * 100:.3f}%")
+                logger.info(bar)
 
     @staticmethod
     def rgb() -> List[str]:
