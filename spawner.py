@@ -168,8 +168,8 @@ class Spawner(object):
                 # fine-tuning or linear probing
                 'linear_probe': self.config['linear_probe'],
                 'fine_tuning': self.config['fine_tuning'],
-                'finetune_probe_epochs': self.config['finetune_probe_epochs'],
-                'finetune_probe_batch_size': self.config['finetune_probe_batch_size'],
+                'ftop_epochs': self.config['ftop_epochs'],
+                'ftop_batch_size': self.config['ftop_batch_size'],
             })
             if 'load_checkpoint' in self.config:
                 hpmap.update({'load_checkpoint': self.load_checkpoint})

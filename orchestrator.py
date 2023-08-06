@@ -47,12 +47,20 @@ def learn(
             "num_workers": args.num_workers,
         }
         # Create the dataloaders
-        dataloaders.append(get_dataloader(**tmpdict, split_path=paths_list[0], train_stage=True, shuffle=True))
-        dataloaders.append(get_dataloader(**tmpdict, split_path=paths_list[1]))
-        dataloaders.append(get_dataloader(**tmpdict, split_path=paths_list[2]))
+        dataloaders.append(get_dataloader(
+            **tmpdict, split_path=paths_list[0], train_stage=True, shuffle=True,
+        ))
+        dataloaders.append(get_dataloader(
+            **tmpdict, split_path=paths_list[1],
+        ))
+        dataloaders.append(get_dataloader(
+            **tmpdict, split_path=paths_list[2],
+        ))
 
         if knn_eval:
-            dataloaders.append(get_dataloader(**tmpdict, split_path=paths_list[0], shuffle=True))
+            dataloaders.append(get_dataloader(
+                **tmpdict, split_path=paths_list[0], shuffle=True,
+            ))
 
         for i, e in enumerate(dataloaders):
             # Log stats about the dataloaders
@@ -65,16 +73,22 @@ def learn(
             tmpdict = {
                 "data_path": args.data_path,
                 "dataset_handle": args.dataset_handle,
-                "batch_size": args.finetune_probe_batch_size,
+                "batch_size": args.ftop_batch_size,
                 "num_transforms": 1,
                 "with_labels": with_labels,
                 "truncate_at": args.truncate_at,
                 "num_workers": args.num_workers,
             }
             # Create the dataloaders
-            dataloaders_2.append(get_dataloader(**tmpdict, split_path=paths_list[0], train_stage=True, shuffle=True))
-            dataloaders_2.append(get_dataloader(**tmpdict, split_path=paths_list[1]))
-            dataloaders_2.append(get_dataloader(**tmpdict, split_path=paths_list[2]))
+            dataloaders_2.append(get_dataloader(
+                **tmpdict, split_path=paths_list[0], train_stage=True, shuffle=True,
+            ))
+            dataloaders_2.append(get_dataloader(
+                **tmpdict, split_path=paths_list[1],
+            ))
+            dataloaders_2.append(get_dataloader(
+                **tmpdict, split_path=paths_list[2],
+            ))
 
             for i, e in enumerate(dataloaders_2):
                 # Log stats about the dataloaders
@@ -157,14 +171,14 @@ def learn(
 
         algo.renew_head()  # also resets the epoch counter!
 
-        while algo.epochs_so_far < args.finetune_probe_epochs:
+        while algo.epochs_so_far < args.ftop_epochs:
 
-            log_epoch_info(logger, algo.epochs_so_far, args.finetune_probe_epochs, tstart)
+            log_epoch_info(logger, algo.epochs_so_far, args.ftop_epochs, tstart)
 
-            algo.finetune_or_train_probe(dataloaders_2[0], dataloaders_2[1])
+            algo.ftop_train(dataloaders_2[0], dataloaders_2[1])
 
         logger.info("testing")
-        algo.test_finetuned_or_probed_model(dataloaders_2[2])
+        algo.ftop_test(dataloaders_2[2])
 
         # Save once we are done
         algo.save_to_path(ckpt_dir, xtra="with_new_head_done")

@@ -15,7 +15,7 @@ from torch.cuda.amp import grad_scaler as gs
 
 from helpers import logger
 from helpers.console_util import log_module_info
-from helpers.metrics_util import compute_metrics
+from helpers.metrics_util import compute_metrics, MetricsAggregator
 from helpers.model_util import add_weight_decay
 from algos.ssl.models import SimCLRModel
 from algos.ssl.ntx_ent_loss import NTXentLoss
@@ -81,7 +81,10 @@ class SimCLR(object):
             logger.info("using LARS optimizer wrapper")
 
         self.ctx = (
-            torch.amp.autocast(device_type='cuda', dtype=torch.float16 if self.hps.fp16 else torch.float32)
+            torch.amp.autocast(
+                device_type='cuda',
+                dtype=torch.float16 if self.hps.fp16 else torch.float32,
+            )
             if self.hps.cuda
             else nullcontext()
         )
@@ -102,7 +105,10 @@ class SimCLR(object):
         return metrics, loss
 
     def send_to_dash(self, metrics, mode='unspecified'):
-        wandb_dict = {f"{mode}/{k}": v.item() if hasattr(v, 'item') else v for k, v in metrics.items()}
+        wandb_dict = {
+            f"{mode}/{k}": v.item() if hasattr(v, 'item') else v
+            for k, v in metrics.items()
+        }
         wandb_dict['epoch'] = self.epochs_so_far
         wandb.log(wandb_dict, step=self.iters_so_far)
 
@@ -182,7 +188,8 @@ class SimCLR(object):
                         sim = self.sim(v_z.unsqueeze(1), z_bank.unsqueeze(0)) / 0.25  # temperature
                         # sizes: (BxD), (NxD) -> (BxN) with the sim reduction along dim 2
 
-                        sim_weights, sim_indices = sim.topk(k=50, dim=-1)  # only keep k closest images
+                        sim_weights, sim_indices = sim.topk(k=50, dim=-1)
+                        # only keep k closest images
                         # size: (BxK) by keeping only a subset of the N's
 
                         # look for the labels of the k closest images
@@ -191,7 +198,8 @@ class SimCLR(object):
                             dim=1,
                             index=sim_indices.unsqueeze(-1).repeat(1, 1, num_classes),
                         )
-                        # size: (BxKxC) by selecting the K indices within dim 1 of the expansion (BxNxC)
+                        # size: (BxKxC) by selecting the K indices
+                        # within dim 1 of the expansion size: (BxNxC)
 
                         sim_weighted_y = (sim_y * sim_weights.exp().unsqueeze(-1)).sum(dim=1)
 
@@ -248,7 +256,8 @@ class SimCLR(object):
                     sim = self.sim(z.unsqueeze(1), z_bank.unsqueeze(0)) / 0.25  # temperature
                     # sizes: (BxD), (NxD) -> (BxN) with the sim reduction along dim 2
 
-                    sim_weights, sim_indices = sim.topk(k=50, dim=-1)  # only keep k closest images
+                    sim_weights, sim_indices = sim.topk(k=50, dim=-1)
+                    # only keep k closest images
                     # size: (BxK) by keeping only a subset of the N's
 
                     # look for the labels of the k closest images
@@ -257,7 +266,8 @@ class SimCLR(object):
                         dim=1,
                         index=sim_indices.unsqueeze(-1).repeat(1, 1, num_classes),
                     )
-                    # size: (BxKxC) by selecting the K indices within dim 1 of the expansion (BxNxC)
+                    # size: (BxKxC) by selecting the K indices
+                    # within dim 1 of the expansion size: (BxNxC)
 
                     sim_weighted_y = (sim_y * sim_weights.exp().unsqueeze(-1)).sum(dim=1)
 
@@ -274,15 +284,18 @@ class SimCLR(object):
         # In self-supervised learning, there are two ways to evaluate models:
         # (i) fine-tuning, and (ii) linear evaluation (or "linear probes").
 
-        # In (i), the entire model is trained (backbone and other additional modules) without accessing the labels;
-        # then a new linear layer is stacked on top of the backbone and both the backbone and the new linear layer
-        # are trained by accessing the labels. Note, since the backbone has already been trained in the first stage,
-        # it is common practice to use a smaller learning rate to avoid large shifts in weight space.
+        # In (i), the entire model is trained (backbone and other additional modules)
+        # without accessing the labels; then a new linear layer is stacked on top of
+        # the backbone and both the backbone and the new linear layer are trained by
+        # accessing the labels. Note, since the backbone has already been trained in
+        # the first stage, it is common practice to use a smaller learning rate to avoid
+        # large shifts in weight space.
         # This is what the authors of the SimCLR paper are doing when they refer to "fine-tuning".
 
-        # In (ii) a similar procedure is followed. In the first stage, models are trained without accessing the labels
-        # (backbone and other additional modules); then in the second stage a new linear layer is stacked on top of the
-        # backbone, and only this new linear layer is trained (no backprop on the backbone) by accessing the labels.
+        # In (ii) a similar procedure is followed. In the first stage, models are trained
+        # without accessing the labels (backbone and other additional modules);
+        # then in the second stage a new linear layer is stacked on top of the backbone,
+        # and only this new linear layer is trained (receives gradients) (and with labels).
 
         # Create new head
         self.new_head = nn.Linear(
@@ -295,9 +308,11 @@ class SimCLR(object):
         self.model = self.model.backbone  # not to carry around the "backbone", prone to omission
 
         # Neutralize model before replacing the head
-        for _, (_, p) in enumerate(self.model.named_parameters()):  # leave like this for quicker diagnostics
+        for _, (_, p) in enumerate(self.model.named_parameters()):
+            # leave like this (with "named_") for quicker diagnostics
             p.requires_grad = False
-        # this step is crucial despite optimizing only the new head; see discussion on PyTorch's official forum here:
+        # this step is crucial despite optimizing only the new head;
+        # see discussion on PyTorch's official forum here:
         # https://discuss.pytorch.org/t/difference-between-set-parameter-requires-grad-false-and-exclude-them-from-optimizer/162126
 
         # Replace the entire mlp part of the SimCLR model with the created linear probe
@@ -313,8 +328,8 @@ class SimCLR(object):
         logger.info("logging the backbone after replacing the head")
         log_module_info(logger, 'simclr_model_with_new_head', self.model)
 
-        # By this design, the resulting network has the exact same architecture as the classifier model!
-        # they are therefore directly comparable!
+        # By this design, the resulting network has the exact same architecture
+        # as the classifier model! They are therefore directly comparable!
 
         self.new_criterion = nn.BCEWithLogitsLoss().to(self.device)
 
@@ -338,13 +353,21 @@ class SimCLR(object):
             )
 
         self.new_ctx = (
-            torch.amp.autocast(device_type='cuda', dtype=torch.float16 if self.hps.fp16 else torch.float32)
+            torch.amp.autocast(
+                device_type='cuda',
+                dtype=torch.float16 if self.hps.fp16 else torch.float32,
+            )
             if self.hps.cuda
             else nullcontext()
         )
 
         # Set up the gradient scaler for fp16 gpu precision
         self.new_scaler = gs.GradScaler(enabled=self.hps.fp16)
+
+        self.metrics = MetricsAggregator(
+            self.hps.num_classes,
+            self.hps.ftop_batch_size,
+        )  # no need for any "new" prefix; this is for downstream classifier only
 
         # Reset the counters
         self.iters_so_far = 0
@@ -356,17 +379,20 @@ class SimCLR(object):
         metrics = {'loss': loss}
         return metrics, loss, pred_y
 
-    def finetune_or_train_probe(self, train_dataloader, val_dataloader):
+    def ftop_train(self, train_dataloader, val_dataloader):
         # the code that follows is identical whether we fine-tune or just train the probe
         # because the only thing that changes between the two is the new optimizer (cf. above)
-
-        special_key = 'finetune-probe'
 
         agg_iterable = zip(
             tqdm(train_dataloader),
             itertools.chain.from_iterable(itertools.repeat(val_dataloader)),
             strict=False,
         )
+        balances = torch.Tensor(val_dataloader.balances)
+        if self.hps.cuda:
+            balances = balances.pin_memory().to(self.device, non_blocking=True)
+        else:
+            balances = balances.to(self.device)
 
         for i, ((t_x, t_true_y), (v_x, v_true_y)) in enumerate(agg_iterable):
 
@@ -392,7 +418,7 @@ class SimCLR(object):
                 self.new_scaler.update()
                 self.new_opt.zero_grad()
 
-                self.send_to_dash(t_metrics, mode=f"{special_key}-train")
+                self.send_to_dash(t_metrics, mode="ftop-train")
                 del t_metrics
 
             if ((i + 1) % self.hps.eval_every == 0) or (i + 1 == len(train_dataloader)):
@@ -408,28 +434,34 @@ class SimCLR(object):
                         v_x, v_true_y = v_x.to(self.device), v_true_y.to(self.device)
 
                     with self.ctx:
-
                         v_metrics, _, v_pred_y = self.compute_classifier_loss(v_x, v_true_y)
-
                         # compute evaluation scores
                         v_pred_y = (v_pred_y >= 0.).long()
-                        v_pred_y, v_true_y = v_pred_y.detach().cpu().numpy(), v_true_y.detach().cpu().numpy()
-                        v_metrics.update(compute_metrics(v_pred_y, v_true_y))
-
-                    self.send_to_dash(v_metrics, mode=f"{special_key}-val")
+                        v_metrics.update(compute_metrics(
+                            v_pred_y, v_true_y,
+                            weights=balances,
+                        ))
+                        self.metrics.step(v_pred_y, v_true_y)
+                    self.send_to_dash(v_metrics, mode="ftop-val")
                     del v_metrics
 
                 self.model.train()
 
             self.iters_so_far += 1
 
+        self.send_to_dash(self.metrics.compute(), mode='ftop-val-agg')
+        self.metrics.reset()
         self.epochs_so_far += 1
 
-    def test_finetuned_or_probed_model(self, dataloader):
+    def ftop_test(self, dataloader):
         # the code that follows is identical whether we fine-tune or just train the probe
         # because the only thing that changes between the two is the new optimizer (cf. above)
 
-        special_key = 'finetune-probe'
+        balances = torch.Tensor(dataloader.balances)
+        if self.hps.cuda:
+            balances = balances.pin_memory().to(self.device, non_blocking=True)
+        else:
+            balances = balances.to(self.device)
 
         self.model.eval()
 
@@ -444,16 +476,18 @@ class SimCLR(object):
                     x, true_y = x.to(self.device), true_y.to(self.device)
 
                 with self.ctx:
-
                     metrics, _, pred_y = self.compute_loss(x, true_y)
-
                     # compute evaluation scores
                     pred_y = (pred_y >= 0.).long()
-                    pred_y, true_y = pred_y.detach().cpu().numpy(), true_y.detach().cpu().numpy()
-                    metrics.update(compute_metrics(pred_y, true_y))
-
-                self.send_to_dash(metrics, mode=f"{special_key}-test")
+                    metrics.update(compute_metrics(
+                        pred_y, true_y,
+                        weights=balances,
+                    ))
+                    self.metrics.step(pred_y, true_y)
+                self.send_to_dash(metrics, mode="ftop-test")
                 del metrics
+
+        self.send_to_dash(self.metrics.compute(), mode='ftop-test-agg')
 
     def save_to_path(self, path, xtra=None):
         suffix = f"model_{self.epochs_so_far}"

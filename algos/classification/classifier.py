@@ -15,7 +15,7 @@ from torch.cuda.amp import grad_scaler as gs
 
 from helpers import logger
 from helpers.console_util import log_module_info
-from helpers.metrics_util import compute_metrics, MetricsAggregator  # XXX
+from helpers.metrics_util import compute_metrics, MetricsAggregator
 from algos.classification.models import ClassifierModelTenChan
 
 
@@ -53,14 +53,20 @@ class Classifier(object):
         )
 
         self.ctx = (
-            torch.amp.autocast(device_type='cuda', dtype=torch.float16 if self.hps.fp16 else torch.float32)
+            torch.amp.autocast(
+                device_type='cuda',
+                dtype=torch.float16 if self.hps.fp16 else torch.float32,
+            )
             if self.hps.cuda
             else nullcontext()
         )
 
         self.scaler = gs.GradScaler(enabled=self.hps.fp16)
 
-        self.metrics = MetricsAggregator(self.hps.num_classes, self.hps.batch_size)
+        self.metrics = MetricsAggregator(
+            self.hps.num_classes,
+            self.hps.batch_size,
+        )
 
         log_module_info(logger, 'classifier_model', self.model)
 
@@ -71,7 +77,10 @@ class Classifier(object):
         return metrics, loss, pred_y
 
     def send_to_dash(self, metrics, mode='unspecified'):
-        wandb_dict = {f"{mode}/{k}": v.item() if hasattr(v, 'item') else v for k, v in metrics.items()}
+        wandb_dict = {
+            f"{mode}/{k}": v.item() if hasattr(v, 'item') else v
+            for k, v in metrics.items()
+        }
         wandb_dict['epoch'] = self.epochs_so_far
         wandb.log(wandb_dict, step=self.iters_so_far)
 

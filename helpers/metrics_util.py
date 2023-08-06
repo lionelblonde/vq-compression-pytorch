@@ -112,9 +112,20 @@ class Metrics(object):
         return reca
 
     @staticmethod
+    def fbeta(prec, reca, beta):
+        return (1. + beta**2) * prec * reca / ((beta**2 * prec) + reca)
+
+    @staticmethod
     def f1(*args):
+        # weights precision and recall equally
         _, prec, reca, _ = Metrics.accu_prec_reca_spec(*args)
-        return 2 * prec * reca / (prec + reca)
+        return Metrics.fbeta(prec, reca, beta=1.)
+
+    @staticmethod
+    def f2(*args):
+        # weights recall higher than precision
+        _, prec, reca, _ = Metrics.accu_prec_reca_spec(*args)
+        return Metrics.fbeta(prec, reca, beta=2.)
 
     @staticmethod
     def specificity(*args):
@@ -134,7 +145,7 @@ def compute_metrics(pred_y, true_y, weights):
     metrics = {}
     keys = [
         'hamming_loss', 'zero_one_loss',
-        'accuracy', 'precision', 'recall', 'f1',
+        'accuracy', 'precision', 'recall', 'f1', 'f2',
         'specificity', 'balanced_accuracy',
     ]
     metric_factory = Metrics()
@@ -155,7 +166,7 @@ class MetricsAggregator(object):
 
     def reset(self):
         # reset the stats
-        self.n = 0  # num of samples seen since last rest
+        self.n = 0  # num of samples seen since last reset
         self.tot_corr = 0
         self.tot_corr_true = 0
         self.tot_corr_false = 0
@@ -197,7 +208,8 @@ class MetricsAggregator(object):
         reca = self.tot_corr_true / self.tot_a_i_true
         spec = self.tot_corr_false / self.tot_a_i_false
 
-        f1 = 2 * prec * reca / (prec + reca)
+        f1 = Metrics.fbeta(prec, reca, beta=1.)
+        f2 = Metrics.fbeta(prec, reca, beta=2.)
         b_accu = (reca + spec) / 2
 
         metrics = {
@@ -205,6 +217,7 @@ class MetricsAggregator(object):
             'precision': prec,
             'recall': reca,
             'f1': f1,
+            'f2': f2,
             'specificity': spec,
             'balanced_accuracy': b_accu,
         }

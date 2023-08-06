@@ -45,5 +45,5 @@ ntx_temp: 0.07
 load_checkpoint: 'model_4_done.tar'
 linear_probe: true
 fine_tuning: false
-finetune_probe_epochs: 90
-finetune_probe_batch_size: 128
+ftop_epochs: 90
+ftop_batch_size: 128
