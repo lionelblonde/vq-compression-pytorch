@@ -114,7 +114,6 @@ class Spawner(object):
         # Assemble the hyperparameter map
         hpmap = {
             # meta
-            'task': self.config['task'],
             # seed handled afterwards
             'uuid': uuid,  # created earlier just here
 
@@ -247,25 +246,16 @@ class Spawner(object):
                                 "#SBATCH --output=./out/run_%j.out\n")
 
             # Sometimes versions are needed (some clusters)
-            # bash_script_str += '#SBATCH --constraint="V3|V4|V5|V6|V7"\n'  # single quote to escape
             if self.config['cuda']:
-                # constraint = "COMPUTE_CAPABILITY_6_0|COMPUTE_CAPABILITY_6_1"
                 constraint = ""
                 bash_script_str += ("#SBATCH --gpus=titan:1\n")
                 if constraint != "":
-                    bash_script_str += (f'#SBATCH --constraint="{constraint}"\n')  # single quote to escape
+                    bash_script_str += (f'#SBATCH --constraint="{constraint}"\n')
             bash_script_str += ('\n')
 
             # Load modules
-            # bash_script_str += ("module load GCC/10.3.0\n")
-            # bash_script_str += ("module load tqdm/4.64.0\n")
-            # bash_script_str += ("module load OpenCV/3.4.7-Python-3.7.4\n")
-            # bash_script_str += ("module load rasterio/1.2.4-Python-3.9.5\n")
-            # bash_script_str += (" module load PyTorch/1.11.0-CUDA-11.3.1\n")
-            # bash_script_str += ("module load CUDA/11.3.1\n")
             bash_script_str += ("module load GCC/9.3.0\n")
             bash_script_str += ("module load CUDA/11.5.0\n")
-            # bash_script_str += ("module load CUDA/11.8.0\n")
             bash_script_str += ('\n')
 
             if self.args.quick:

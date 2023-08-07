@@ -76,13 +76,18 @@ class Classifier(object):
         metrics = {'loss': loss}
         return metrics, loss, pred_y
 
-    def send_to_dash(self, metrics, mode='unspecified'):
+    def send_to_dash(self, metrics, step=None, mode='unspecified'):
         wandb_dict = {
             f"{mode}/{k}": v.item() if hasattr(v, 'item') else v
             for k, v in metrics.items()
         }
-        wandb_dict['epoch'] = self.epochs_so_far
-        wandb.log(wandb_dict, step=self.iters_so_far)
+        if mode == 'val':
+            wandb_dict['epoch'] = self.epochs_so_far
+            logger.info("epoch sent to wandb")
+        if step is None:
+            step = self.iters_so_far  # use iters in x-axis by default
+            logger.warn("arg step unspecified; set to iter by default")
+        wandb.log(wandb_dict, step=step)
 
     def train(self, train_dataloader, val_dataloader):
 
@@ -121,7 +126,7 @@ class Classifier(object):
                 self.scaler.update()
                 self.opt.zero_grad()
 
-                self.send_to_dash(t_metrics, mode='train')
+                self.send_to_dash(t_metrics, step=self.iters_so_far, mode='train')
                 del t_metrics
 
             if ((i + 1) % self.hps.eval_every == 0) or (i + 1 == len(train_dataloader)):
@@ -145,14 +150,15 @@ class Classifier(object):
                             weights=balances,
                         ))
                         self.metrics.step(v_pred_y, v_true_y)
-                    self.send_to_dash(v_metrics, mode='val')
+
+                    self.send_to_dash(v_metrics, step=self.iters_so_far, mode='val')
                     del v_metrics
 
                 self.model.train()
 
             self.iters_so_far += 1
 
-        self.send_to_dash(self.metrics.compute(), mode='val-agg')
+        self.send_to_dash(self.metrics.compute(), step=self.epochs_so_far, mode='val-agg')
         self.metrics.reset()
         self.epochs_so_far += 1
 
@@ -168,7 +174,7 @@ class Classifier(object):
 
         with torch.no_grad():
 
-            for x, true_y in tqdm(dataloader):
+            for i, (x, true_y) in enumerate(tqdm(dataloader)):
 
                 if self.hps.cuda:
                     x = x.pin_memory().to(self.device, non_blocking=True)
@@ -185,10 +191,12 @@ class Classifier(object):
                         weights=balances,
                     ))
                     self.metrics.step(pred_y, true_y)
-                self.send_to_dash(metrics, mode='test')
+
+                self.send_to_dash(metrics, step=i, mode='test')
                 del metrics
 
-        self.send_to_dash(self.metrics.compute(), mode='test-agg')
+        self.send_to_dash(self.metrics.compute(), step=i, mode='test-agg')
+        # use `i` from previous loop to see over how many steps the stats are aggregated
 
     def save_to_path(self, path, xtra=None):
         suffix = f"model_{self.epochs_so_far}"
@@ -207,6 +215,10 @@ class Classifier(object):
 
     def load_from_path(self, path):
         checkpoint = torch.load(path)
+        if 'iters_so_far' in checkpoint:
+            self.iters_so_far = checkpoint['iters_so_far']
+        if 'epochs_so_far' in checkpoint:
+            self.epochs_so_far = checkpoint['epochs_so_far']
         # the "strict" argument of `load_state_dict` is True by default
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.opt.load_state_dict(checkpoint['opt_state_dict'])

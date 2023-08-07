@@ -1,5 +1,4 @@
 # meta
-task: 'train'
 # seed is handled by the spawner
 # uuid is handled by the spawner (and otherwise one is created later)
 
@@ -47,3 +46,4 @@ linear_probe: true
 fine_tuning: false
 ftop_epochs: 90
 ftop_batch_size: 128
+

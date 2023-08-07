@@ -60,14 +60,25 @@ class Compressor(object):
 
     def compute_loss(self, x):
         recon_x, vq_loss, perplexity, encoding_indices, normalized_distances = self.model(x)
-        losses, table = self.criteria(x, recon_x, vq_loss, encoding_indices, normalized_distances)
+        losses, table = self.criteria(
+            x, recon_x, vq_loss, encoding_indices, normalized_distances,
+        )
         recon_error, loss = losses['recon_error'], losses['loss']
         metrics = {'recon_error': recon_error, 'perplexity': perplexity, 'loss': loss}
         return metrics, loss, table
 
-    def send_to_dash(self, metrics, table=None, mode='unspecified'):
-        wandb_dict = {f"{mode}/{k}": v.item() if hasattr(v, 'item') else v for k, v in metrics.items()}
-        wandb.log(wandb_dict, step=self.iters_so_far)
+    def send_to_dash(self, metrics, table=None, step=None, mode='unspecified'):
+        wandb_dict = {
+            f"{mode}/{k}": v.item() if hasattr(v, 'item') else v
+            for k, v in metrics.items()
+        }
+        if mode == 'val':
+            wandb_dict['epoch'] = self.epochs_so_far
+            logger.info("epoch sent to wandb")
+        if step is None:
+            step = self.iters_so_far  # use iters in x-axis by default
+            logger.warn("arg step unspecified; set to iter by default")
+        wandb.log(wandb_dict, step=step)
         if table is not None:
             wandb_table = wandb.Table(data=table, columns=["c_idx", "usage(c)"])
             wandb.log({f"{mode}/usage_plot": wandb_table})
@@ -103,7 +114,7 @@ class Compressor(object):
                 self.scaler.update()
                 self.opt.zero_grad()
 
-                self.send_to_dash(t_metrics, mode='train')
+                self.send_to_dash(t_metrics, step=self.iters_so_far, mode='train')
                 del t_metrics
 
             if ((i + 1) % self.hps.eval_every == 0) or (i + 1 == len(train_dataloader)):
@@ -120,7 +131,7 @@ class Compressor(object):
                     with self.ctx:
                         v_metrics, _, _ = self.compute_loss(v_x)
 
-                    self.send_to_dash(v_metrics, mode='val')
+                    self.send_to_dash(v_metrics, step=self.iters_so_far, mode='val')
                     del v_metrics
 
                 self.model.train()
@@ -135,7 +146,7 @@ class Compressor(object):
 
         with torch.no_grad():
 
-            for x in tqdm(dataloader):
+            for i, x in enumerate(tqdm(dataloader)):
 
                 if self.hps.cuda:
                     x = x.pin_memory().to(self.device, non_blocking=True)
@@ -145,7 +156,7 @@ class Compressor(object):
                 with self.ctx:
                     metrics, _, table = self.compute_loss(x)
 
-                self.send_to_dash(metrics, table, mode='test')
+                self.send_to_dash(metrics, table, step=i, mode='test')
                 del metrics
 
     def save_to_path(self, path, xtra=None):
@@ -165,6 +176,10 @@ class Compressor(object):
 
     def load_from_path(self, path):
         checkpoint = torch.load(path)
+        if 'iters_so_far' in checkpoint:
+            self.iters_so_far = checkpoint['iters_so_far']
+        if 'epochs_so_far' in checkpoint:
+            self.epochs_so_far = checkpoint['epochs_so_far']
         # the "strict" argument of `load_state_dict` is True by default
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.opt.load_state_dict(checkpoint['opt_state_dict'])

@@ -92,9 +92,22 @@ class SimCLR(object):
         self.scaler = gs.GradScaler(enabled=self.hps.fp16)
 
         if self.hps.load_checkpoint is not None:
-            # load model weights from a checkpoint file
-            self.load_from_path(self.hps.load_checkpoint)
-            logger.info("model loaded")
+            self.already_loaded = False
+            cond = (
+                (self.hps.epochs <= 0) and
+                (self.hps.linear_probe or self.hps.fine_tuning) and
+                (self.hps.ftop_epochs <= 0)
+            )  # signifies that we want to test the classifier head
+            if cond:
+                # skip model loading here (done in head renewal)
+                logger.warn("model will be loaded instead in head renewal")
+                logger.warn("also resuming head training is not supported")  # short enough
+                pass
+            else:
+                # load model weights from a checkpoint file
+                self.load_from_path(self.hps.load_checkpoint)
+                logger.info("model loaded")
+                self.already_loaded = True
 
         log_module_info(logger, 'simclr_model', self.model)
 
@@ -104,11 +117,17 @@ class SimCLR(object):
         metrics = {'loss': loss.item()}
         return metrics, loss
 
-    def send_to_dash(self, metrics, mode='unspecified'):
+    def send_to_dash(self, metrics, step=None, mode='unspecified'):
         wandb_dict = {
             f"{mode}/{k}": v.item() if hasattr(v, 'item') else v
             for k, v in metrics.items()
         }
+        if mode == 'val':
+            wandb_dict['epoch'] = self.epochs_so_far
+            logger.info("epoch sent to wandb")
+        if step is None:
+            step = self.iters_so_far  # use iters in x-axis by default
+            logger.warn("arg step unspecified; set to iter by default")
         wandb_dict['epoch'] = self.epochs_so_far
         wandb.log(wandb_dict, step=self.iters_so_far)
 
@@ -146,7 +165,7 @@ class SimCLR(object):
                 self.scaler.update()
                 self.opt.zero_grad()
 
-                self.send_to_dash(t_metrics, mode='train')
+                self.send_to_dash(t_metrics, step=self.iters_so_far, mode='train')
                 del t_metrics
 
             if ((i + 1) % self.hps.eval_every == 0) or (i + 1 == len(train_dataloader)):
@@ -207,7 +226,7 @@ class SimCLR(object):
 
                         v_metrics = {'loss': v_loss.item()}
 
-                    self.send_to_dash(v_metrics, mode='val')
+                    self.send_to_dash(v_metrics, step=self.iters_so_far, mode='val')
                     del v_metrics
 
                 self.model.train()
@@ -238,10 +257,10 @@ class SimCLR(object):
                 y_bank.append(k_true_y)
             logger.info("bank built")
             num_classes = k_true_y.size(-1)  # using the last label loaded
-            z_bank = torch.cat(z_bank, dim=0)  # size: (NxD)
-            y_bank = torch.cat(y_bank, dim=0)  # size: (NxC)
+            z_bank = torch.cat(z_bank, dim=0).to(self.device)  # size: (NxD)
+            y_bank = torch.cat(y_bank, dim=0).to(self.device)  # size: (NxC)
 
-            for x, true_y in tqdm(test_dataloader):
+            for i, (x, true_y) in enumerate(tqdm(test_dataloader)):
 
                 if self.hps.cuda:
                     x = x.pin_memory().to(self.device, non_blocking=True)
@@ -275,10 +294,8 @@ class SimCLR(object):
 
                     metrics = {'loss': loss.item()}
 
-                self.send_to_dash(metrics, mode='test')
+                self.send_to_dash(metrics, step=i, mode='test')
                 del metrics
-
-        self.model.train()
 
     def renew_head(self):
         # In self-supervised learning, there are two ways to evaluate models:
@@ -373,6 +390,12 @@ class SimCLR(object):
         self.iters_so_far = 0
         self.epochs_so_far = 0
 
+        if self.hps.load_checkpoint is not None:
+            if not self.already_loaded:
+                # load model weights from a checkpoint file
+                self.load_from_path(self.hps.load_checkpoint)
+                logger.info("ftop model loaded")  # different message
+
     def compute_classifier_loss(self, x, true_y):
         pred_y = self.model(x)
         loss = self.new_criterion(pred_y, true_y)
@@ -418,7 +441,7 @@ class SimCLR(object):
                 self.new_scaler.update()
                 self.new_opt.zero_grad()
 
-                self.send_to_dash(t_metrics, mode="ftop-train")
+                self.send_to_dash(t_metrics, step=self.iters_so_far, mode="ftop-train")
                 del t_metrics
 
             if ((i + 1) % self.hps.eval_every == 0) or (i + 1 == len(train_dataloader)):
@@ -442,14 +465,15 @@ class SimCLR(object):
                             weights=balances,
                         ))
                         self.metrics.step(v_pred_y, v_true_y)
-                    self.send_to_dash(v_metrics, mode="ftop-val")
+
+                    self.send_to_dash(v_metrics, step=self.iters_so_far, mode="ftop-val")
                     del v_metrics
 
                 self.model.train()
 
             self.iters_so_far += 1
 
-        self.send_to_dash(self.metrics.compute(), mode='ftop-val-agg')
+        self.send_to_dash(self.metrics.compute(), step=self.epochs_so_far, mode='ftop-val-agg')
         self.metrics.reset()
         self.epochs_so_far += 1
 
@@ -467,7 +491,7 @@ class SimCLR(object):
 
         with torch.no_grad():
 
-            for x, true_y in tqdm(dataloader):
+            for i, (x, true_y) in enumerate(tqdm(dataloader)):
 
                 if self.hps.cuda:
                     x = x.pin_memory().to(self.device, non_blocking=True)
@@ -484,10 +508,12 @@ class SimCLR(object):
                         weights=balances,
                     ))
                     self.metrics.step(pred_y, true_y)
-                self.send_to_dash(metrics, mode="ftop-test")
+
+                self.send_to_dash(metrics, step=i, mode="ftop-test")
                 del metrics
 
-        self.send_to_dash(self.metrics.compute(), mode='ftop-test-agg')
+        self.send_to_dash(self.metrics.compute(), step=i, mode='ftop-test-agg')
+        # use `i` from previous loop to see over how many steps the stats are aggregated
 
     def save_to_path(self, path, xtra=None):
         suffix = f"model_{self.epochs_so_far}"
@@ -506,6 +532,10 @@ class SimCLR(object):
 
     def load_from_path(self, path):
         checkpoint = torch.load(path)
+        if 'iters_so_far' in checkpoint:
+            self.iters_so_far = checkpoint['iters_so_far']
+        if 'epochs_so_far' in checkpoint:
+            self.epochs_so_far = checkpoint['epochs_so_far']
         # the "strict" argument of `load_state_dict` is True by default
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.opt.load_state_dict(checkpoint['opt_state_dict'])

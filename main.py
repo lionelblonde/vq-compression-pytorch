@@ -14,7 +14,7 @@ from algos.ssl.simclr import SimCLR
 from algos.compression.compressor import Compressor
 
 
-def train(args):
+def run(args):
 
     # Initialize and configure experiment
     experiment = ExperimentInitializer(args)
@@ -85,16 +85,13 @@ def train(args):
 
 
 if __name__ == '__main__':
+
     _args = agg_argparser().parse_args()
 
-    # Make the paths absolute
-    _args.root = Path(__file__).resolve().parent
+    _args.root = Path(__file__).resolve().parent  # make the paths absolute
     for k in ['checkpoints', 'logs']:
         new_k = f"{k[:-1]}_dir"
         vars(_args)[new_k] = Path(_args.root) / 'data' / k
 
-    if _args.task == 'train':
-        train(_args)
-    else:
-        raise NotImplementedError
+    run(_args)
 

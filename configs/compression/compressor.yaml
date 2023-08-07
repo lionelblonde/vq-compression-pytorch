@@ -1,11 +1,10 @@
 # meta
-task: 'train'
 # seed is handled by the spawner
 # uuid is handled by the spawner (and otherwise one is created later)
 
 # resources
 cuda: true
-fp16: false
+fp16: true
 
 # logging
 wandb_project: 'psyduck'

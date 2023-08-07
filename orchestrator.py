@@ -158,8 +158,7 @@ def learn(
         # Save once we are done training
         # (unless we have not done a single epoch of training)
         algo.save_to_path(ckpt_dir, xtra="done")
-        logger.info(f"we're done training. Saving model @: {ckpt_dir}")
-        logger.info("bye.")
+        logger.info(f"we're done training. Saving model @: {ckpt_dir}.\nbye.")
 
     if args.linear_probe or args.fine_tuning:
         if args.linear_probe:
@@ -182,12 +181,14 @@ def learn(
 
         # Save once we are done
         algo.save_to_path(ckpt_dir, xtra="with_new_head_done")
-        logger.info(f"we're done. Saving model @: {ckpt_dir}")
-        logger.info("bye.")
+        logger.info(f"we're done. Saving model @: {ckpt_dir}.\nbye.")
 
         logger.info("now we are really done. bye.")
 
     else:
         logger.info("testing")
-        algo.test(dataloaders[2], dataloaders[3])
+        if args.algo_handle == 'simclr':  # and any future potential contrastive-loss algo
+            algo.test(dataloaders[2], dataloaders[3])
+        else:
+            algo.test(dataloaders[2])
 

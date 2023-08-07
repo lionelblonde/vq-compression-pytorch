@@ -26,11 +26,6 @@ def agg_argparser():
 
     # meta
     parser.add_argument(
-        "--task", type=str,
-        choices=['train', 'test'],
-        default=None,
-    )
-    parser.add_argument(
         "--seed", type=int, default=0,
         help="RNG seed for reproducibility",
     )
@@ -141,7 +136,7 @@ def agg_argparser():
         "--ftop_epochs", type=int, default=10,
     )  # same as SimCLR
     parser.add_argument(
-        "--ftop_batch_size", type=int, default=256,
+        "--ftop_batch_size", type=int, default=128,
     )
 
     # COMPRESSOR

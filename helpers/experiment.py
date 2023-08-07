@@ -78,10 +78,6 @@ class ExperimentInitializer:
             name += f"gitSHA_{out.strip().decode('ascii')}."
         except OSError:
              pass
-        if self.args.task == 'eval':
-            name += "INFERENCE"
-        else:
-            name += "TRAINING"
         name += f".{self.args.algo_handle}"
         name += f".seed{str(self.args.seed).zfill(2)}"
         return name
