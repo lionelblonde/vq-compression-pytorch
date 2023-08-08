@@ -40,6 +40,9 @@ class LARSWrapper(object):
     def state_dict(self):
         return self.opt.state_dict()
 
+    def get_last_lr(self):
+        return self.opt.get_last_lr()
+
     def load_state_dict(self, state_dict):
         self.opt.load_state_dict(state_dict)
 

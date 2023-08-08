@@ -8,7 +8,7 @@ python main.py \
     --dataset_handle bigearthnet \
     --val_split 0.25 \
     --test_split 0.25 \
-    --epoch 0 \
+    --epoch 2 \
     --batch_size 128 \
     --save_freq 1 \
     --eval_every 16 \
