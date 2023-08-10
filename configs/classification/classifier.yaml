@@ -27,6 +27,8 @@ lr: 3e-4
 wd: 2e-5
 clip_norm: 0
 acc_grad_steps: 8
+lars: true
+sched: true
 
 # algo
 algo_handle: 'classifier'

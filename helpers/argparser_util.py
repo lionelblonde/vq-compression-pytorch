@@ -96,6 +96,14 @@ def agg_argparser():
     parser.add_argument(
         "--acc_grad_steps", type=int, default=8,
     )
+    boolean_flag(
+        parser, "lars", default=False,
+        help="whether to use layerwise lr adaption",
+    )
+    boolean_flag(
+        parser, "sched", default=False,
+        help="whether to use lr scheduler",
+    )
     # algo
     parser.add_argument(
         "--algo_handle", type=str,

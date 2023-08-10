@@ -48,7 +48,15 @@ class Spawner(object):
         self.memory = MEMORY
 
         # Write out the boolean arguments (using the 'boolean_flag' function)
-        self.bool_args = ['cuda', 'fp16', 'pretrained_w_imagenet', 'linear_probe', 'fine_tuning']
+        self.bool_args = [
+            'cuda',
+            'fp16',
+            'pretrained_w_imagenet',
+            'linear_probe',
+            'fine_tuning',
+            'lars',
+            'sched',
+        ]
 
         if self.args.deployment == 'slurm':
             # Translate intuitive 'caliber' into actual duration and partition on the Baobab cluster
@@ -140,6 +148,8 @@ class Spawner(object):
             'wd': self.config['wd'],
             'clip_norm': self.config['clip_norm'],
             'acc_grad_steps': self.config['acc_grad_steps'],
+            'lars': self.config['lars'],
+            'sched': self.config['sched'],
 
             # algo
             'algo_handle': self.config['algo_handle'],

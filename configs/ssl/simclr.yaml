@@ -27,6 +27,8 @@ lr: 3e-4
 wd: 1e-4
 clip_norm: 0
 acc_grad_steps: 8
+lars: true
+sched: true
 
 # algorithm choice
 algo_handle: 'simclr'

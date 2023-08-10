@@ -53,8 +53,7 @@ class SimCLR(object):
         self.sim = nn.CosineSimilarity(dim=2).to(self.device)
         self.bce = nn.BCEWithLogitsLoss().to(self.device)
 
-        layerwise_lr_adaption = True  # can do better
-        if not layerwise_lr_adaption:
+        if not self.hps.lars:  # if not set to use layerwise lr adaption
             self.opt = torch.optim.Adam(
                 add_weight_decay(
                     self.model,
@@ -81,10 +80,11 @@ class SimCLR(object):
             )  # wrap with the LARC-inspired LARS wrapper
             logger.info("using LARS optimizer wrapper")
 
-        self.sched = torch.optim.lr_scheduler.CosineAnnealingLR(
-            self._opt,
-            T_max=800,
-        )  # "decay the learning rate with the cosine decay schedule without restarts"
+        if self.hps.sched:  # if set to use lr scheduler
+            self.sched = torch.optim.lr_scheduler.CosineAnnealingLR(
+                self._opt,
+                T_max=800,
+            )  # "decay the learning rate with the cosine decay schedule without restarts"
 
         self.ctx = (
             torch.amp.autocast(
@@ -129,7 +129,11 @@ class SimCLR(object):
             for k, v in metrics.items()
         }
         if mode == 'train':
-            wandb_dict['lr'] = self.sched.get_last_lr()[0]
+            wandb_dict['lr'] = (
+                self.sched.get_last_lr()[0]  # current lr if using scheduler
+                if self.hps.sched else
+                self.hps.lr  # otherwise just the used fixed lr
+            )
         if mode == 'val':
             wandb_dict['epoch'] = self.epochs_so_far
             logger.info("epoch sent to wandb")
@@ -241,7 +245,8 @@ class SimCLR(object):
 
             self.iters_so_far += 1
 
-        self.sched.step()
+        if self.hps.sched:
+            self.sched.step()
         self.epochs_so_far += 1
 
     def test(self, test_dataloader, knn_dataloader):
@@ -530,15 +535,20 @@ class SimCLR(object):
             suffix += f"_{xtra}"
         suffix += ".tar"
         path = Path(path) / suffix
-        torch.save({
+        checkpoint = {
             'hps': self.hps,
             'iters_so_far': self.iters_so_far,
             'epochs_so_far': self.epochs_so_far,
             # state_dict's
             'model_state_dict': self.model.state_dict(),
             'opt_state_dict': self.opt.state_dict(),
-            'sched_state_dict': self.sched.state_dict(),
-        }, path)
+        }
+        if self.hps.sched:
+            checkpoint.update({
+                'sched_state_dict': self.sched.state_dict(),
+            })
+        # save the checkpoint to filesystem
+        torch.save(checkpoint, path)
 
     def load_from_path(self, path):
         checkpoint = torch.load(path)
@@ -549,8 +559,12 @@ class SimCLR(object):
         # the "strict" argument of `load_state_dict` is True by default
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.opt.load_state_dict(checkpoint['opt_state_dict'])
-        if 'sched_state_dict' in checkpoint:
-            self.sched.load_state_dict(checkpoint['sched_state_dict'])
-        else:
-            logger.warn("no sched found in checkpoint file; moving on nonetheless")
+        if self.hps.sched:
+            if 'sched_state_dict' in checkpoint:
+                self.sched.load_state_dict(checkpoint['sched_state_dict'])
+            else:
+                logger.warn("no sched found in checkpoint file; moving on nonetheless")
+        else:  # send a warning in case flagging use to False is an oversight
+            if 'sched_state_dict' in checkpoint:
+                logger.warn("there was a sched in checkpoint, but you want none")
 
