@@ -53,7 +53,7 @@ class SimCLR(object):
         self.sim = nn.CosineSimilarity(dim=2).to(self.device)
         self.bce = nn.BCEWithLogitsLoss().to(self.device)
 
-        layerwise_lr_adaption = False  # can do better
+        layerwise_lr_adaption = True  # can do better
         if not layerwise_lr_adaption:
             self.opt = torch.optim.Adam(
                 add_weight_decay(
@@ -64,7 +64,7 @@ class SimCLR(object):
                 weight_decay=0.,  # added on per-param basis in groups manually
             )  # upgrade: "decay the learning rate with the cosine decay schedule without restarts"
         else:
-            self.opt = torch.optim.SGD(
+            self._opt = torch.optim.SGD(
                 add_weight_decay(
                     self.model,
                     weight_decay=self.hps.wd,
@@ -76,13 +76,13 @@ class SimCLR(object):
                 weight_decay=0.,  # added on per-param basis in groups manually
             )
             self.opt = LARSWrapper(
-                opt=self.opt,
+                opt=self._opt,
                 trust_coeff=1e-3,
             )  # wrap with the LARC-inspired LARS wrapper
             logger.info("using LARS optimizer wrapper")
 
         self.sched = torch.optim.lr_scheduler.CosineAnnealingLR(
-            self.opt,
+            self._opt,
             T_max=800,
         )  # "decay the learning rate with the cosine decay schedule without restarts"
 
@@ -549,5 +549,8 @@ class SimCLR(object):
         # the "strict" argument of `load_state_dict` is True by default
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.opt.load_state_dict(checkpoint['opt_state_dict'])
-        self.sched.load_state_dict(checkpoint['sched_state_dict'])
+        if 'sched_state_dict' in checkpoint:
+            self.sched.load_state_dict(checkpoint['sched_state_dict'])
+        else:
+            logger.warn("no sched found in checkpoint file; moving on nonetheless")
 

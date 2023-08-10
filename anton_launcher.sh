@@ -16,7 +16,7 @@ python main.py \
     --wd 0 \
     --clip_norm 0 \
     --algo_handle 'simclr' \
-    --linear_probe \
+    --no-linear_probe \
     --no-fine_tuning \
     --fc_hid_dim 128 \
     --backbone resnet18 \
