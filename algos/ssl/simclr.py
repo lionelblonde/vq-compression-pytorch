@@ -123,25 +123,22 @@ class SimCLR(object):
         metrics = {'loss': loss.item()}
         return metrics, loss
 
-    def send_to_dash(self, metrics, step=None, mode='unspecified'):
+    def send_to_dash(self, metrics, *, step_metric, glob):
         wandb_dict = {
-            f"{mode}/{k}": v.item() if hasattr(v, 'item') else v
+            f"{glob}/{k}": v.item() if hasattr(v, 'item') else v
             for k, v in metrics.items()
         }
-        if mode == 'train':
-            wandb_dict['lr'] = (
+        if glob == 'train':
+            wandb_dict[f"{glob}/lr"] = (
                 self.sched.get_last_lr()[0]  # current lr if using scheduler
                 if self.hps.sched else
                 self.hps.lr  # otherwise just the used fixed lr
             )
-        if mode == 'val':
-            wandb_dict['epoch'] = self.epochs_so_far
-            logger.info("epoch sent to wandb")
-        if step is None:
-            step = self.iters_so_far  # use iters in x-axis by default
-            logger.warn("arg step unspecified; set to iter by default")
+        wandb_dict[f"{glob}/step"] = step_metric
         wandb_dict['epoch'] = self.epochs_so_far
-        wandb.log(wandb_dict, step=self.iters_so_far)
+
+        wandb.log(wandb_dict)
+        logger.info(f"logged this to wandb: {wandb_dict}")
 
     def train(self, train_dataloader, val_dataloader, knn_dataloader):
 
@@ -177,7 +174,7 @@ class SimCLR(object):
                 self.scaler.update()
                 self.opt.zero_grad()
 
-                self.send_to_dash(t_metrics, step=self.iters_so_far, mode='train')
+                self.send_to_dash(t_metrics, step_metric=self.iters_so_far, glob='train')
                 del t_metrics
 
             if ((i + 1) % self.hps.eval_every == 0) or (i + 1 == len(train_dataloader)):
@@ -238,7 +235,7 @@ class SimCLR(object):
 
                         v_metrics = {'loss': v_loss.item()}
 
-                    self.send_to_dash(v_metrics, step=self.iters_so_far, mode='val')
+                    self.send_to_dash(v_metrics, step_metric=self.iters_so_far, glob='val')
                     del v_metrics
 
                 self.model.train()
@@ -308,7 +305,7 @@ class SimCLR(object):
 
                     metrics = {'loss': loss.item()}
 
-                self.send_to_dash(metrics, step=i, mode='test')
+                self.send_to_dash(metrics, step_metric=i, glob='test')
                 del metrics
 
     def renew_head(self):
@@ -455,7 +452,7 @@ class SimCLR(object):
                 self.new_scaler.update()
                 self.new_opt.zero_grad()
 
-                self.send_to_dash(t_metrics, step=self.iters_so_far, mode="ftop-train")
+                self.send_to_dash(t_metrics, step_metric=self.iters_so_far, glob='ftop-train')
                 del t_metrics
 
             if ((i + 1) % self.hps.eval_every == 0) or (i + 1 == len(train_dataloader)):
@@ -480,14 +477,16 @@ class SimCLR(object):
                         ))
                         self.metrics.step(v_pred_y, v_true_y)
 
-                    self.send_to_dash(v_metrics, step=self.iters_so_far, mode="ftop-val")
+                    self.send_to_dash(
+                        v_metrics, step_metric=self.iters_so_far, glob='ftop-val')
                     del v_metrics
 
                 self.model.train()
 
             self.iters_so_far += 1
 
-        self.send_to_dash(self.metrics.compute(), step=self.epochs_so_far, mode='ftop-val-agg')
+        self.send_to_dash(
+            self.metrics.compute(), step_metric=self.epochs_so_far, glob='ftop-val-agg')
         self.metrics.reset()
         self.epochs_so_far += 1
 
@@ -514,7 +513,7 @@ class SimCLR(object):
                     x, true_y = x.to(self.device), true_y.to(self.device)
 
                 with self.ctx:
-                    metrics, _, pred_y = self.compute_loss(x, true_y)
+                    metrics, _, pred_y = self.compute_classifier_loss(x, true_y)
                     # compute evaluation scores
                     pred_y = (pred_y >= 0.).long()
                     metrics.update(compute_metrics(
@@ -523,10 +522,10 @@ class SimCLR(object):
                     ))
                     self.metrics.step(pred_y, true_y)
 
-                self.send_to_dash(metrics, step=i, mode="ftop-test")
+                self.send_to_dash(metrics, step_metric=i, glob='ftop-test')
                 del metrics
 
-        self.send_to_dash(self.metrics.compute(), step=i, mode='ftop-test-agg')
+        self.send_to_dash(self.metrics.compute(), step_metric=0, glob='ftop-test-agg')
         # use `i` from previous loop to see over how many steps the stats are aggregated
 
     def save_to_path(self, path, xtra=None):

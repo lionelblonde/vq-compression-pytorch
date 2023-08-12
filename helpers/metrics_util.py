@@ -4,53 +4,6 @@ import torch
 class Metrics(object):
 
     @staticmethod
-    def hamming_loss(pred, answer, weights, use_weights=False):
-        # for multi-label
-        # for a given sample with multiple predicted labels
-        # computes the fraction of incorrectly predicted labels
-        # it penalizes only the individual labels, and does not
-        # impose for the entire set of labels to match
-        if not use_weights:
-            weights = torch.ones_like(weights)  # replace with just ones
-        else:
-            weights /= weights.sum()  # just in case
-        pred, answer = pred.byte(), answer.byte()  # not an inplace method!
-        out = (
-            (torch.bitwise_and(
-                pred, answer
-            ) * weights).sum(dim=1) /
-            (torch.bitwise_or(
-                pred, answer
-            ) * weights).sum(dim=1)
-        ).float().mean()
-        if out.isnan():  # denom can cause NaN issues
-            out = torch.tensor(1.0)
-        # this is the score; the loss is simply its complement to 1
-        return 1. - out
-
-    @staticmethod
-    def zero_one_loss(pred, answer, weights, use_weights=False):
-        # for multi-label
-        # returns the fraction of misclassifications
-        # incorrect means there is not a 100% match with
-        # the true set of labels => less forgiving that Hamming
-        if not use_weights:
-            weights = torch.ones_like(weights)  # replace with just ones
-        else:
-            weights /= weights.sum()  # just in case
-        pred, answer = pred.byte(), answer.byte()  # not an inplace method!
-        out = (
-            (torch.bitwise_and(
-                pred, answer
-            ) * weights).prod(dim=1) /
-            (torch.bitwise_or(
-                pred, answer
-            ) * weights).sum(dim=1)
-        ).float().mean()
-        # this is the score; the loss is simply its complement to 1
-        return 1. - out
-
-    @staticmethod
     def accu_prec_reca_spec(pred, answer, weights, use_weights=False):
         if not use_weights:
             weights = torch.ones_like(weights)  # replace with just ones
@@ -80,9 +33,15 @@ class Metrics(object):
             a_i_false = n - a_i_true
             tot_a_i_false += a_i_false
 
-            corr = (p_i == a_i).sum(dim=0).float()
-            corr_true = (p_i * a_i).sum(dim=0).float()
-            corr_false = ((1 - p_i) * (1 - a_i)).sum(dim=0).float()
+            corr = (
+                p_i == a_i
+            ).sum(dim=0).float()
+            corr_true = (
+                p_i + a_i == 2
+            ).sum(dim=0).float()
+            corr_false = (
+                p_i + a_i == 0
+            ).sum(dim=0).float()
 
             tot_corr += corr * w_i
             tot_corr_true += corr_true * w_i
@@ -95,6 +54,27 @@ class Metrics(object):
         spec = tot_corr_false / tot_a_i_false
 
         return accu, prec, reca, spec
+
+    @staticmethod
+    def subset_accuracy(pred, answer, weights, use_weights=False):
+        # weights are ununsed here, because it makes no sense
+        # insofar as the subset accuracy is not "per label"
+
+        # unpack the sizes for us to use
+        n, num_labels = pred.size()  # arbitrary
+
+        subset_corr = 0
+
+        for j in range(n):
+            # going over the rows now
+
+            p_j, a_j = pred[j, :], answer[j, :]
+
+            subset_corr += (p_j == a_j).prod()  # zero unless all matching
+
+        subset_accu = subset_corr / n
+
+        return subset_accu
 
     @staticmethod
     def accuracy(*args):
@@ -135,7 +115,7 @@ class Metrics(object):
     @staticmethod
     def balanced_accuracy(*args):
         _, _, reca, spec = Metrics.accu_prec_reca_spec(*args)
-        # arithm. mean between recall and specificity
+        # arithm. mean between recall (also called sensitivity) and specificity
         b_accu = (reca + spec) / 2
         return b_accu
 
@@ -144,9 +124,9 @@ def compute_metrics(pred_y, true_y, weights):
     # classification-specific eval metrics
     metrics = {}
     keys = [
-        'hamming_loss', 'zero_one_loss',
         'accuracy', 'precision', 'recall', 'f1', 'f2',
         'specificity', 'balanced_accuracy',
+        'subset_accuracy',
     ]
     metric_factory = Metrics()
     for k in keys:
@@ -193,9 +173,15 @@ class MetricsAggregator(object):
             a_i_false = self.batch_size - a_i_true
             self.tot_a_i_false += a_i_false
 
-            corr = (p_i == a_i).sum(dim=0).float()
-            corr_true = (p_i * a_i).sum(dim=0).float()
-            corr_false = ((1 - p_i) * (1 - a_i)).sum(dim=0).float()
+            corr = (
+                p_i == a_i
+            ).sum(dim=0).float()
+            corr_true = (
+                p_i + a_i == 2
+            ).sum(dim=0).float()
+            corr_false = (
+                p_i + a_i == 0
+            ).sum(dim=0).float()
 
             self.tot_corr += corr
             self.tot_corr_true += corr_true
@@ -221,7 +207,6 @@ class MetricsAggregator(object):
             'specificity': spec,
             'balanced_accuracy': b_accu,
         }
-        metrics = {k: v.item() for k, v in metrics.items()}
 
         return metrics
 

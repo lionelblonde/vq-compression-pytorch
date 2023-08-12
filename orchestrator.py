@@ -66,7 +66,7 @@ def learn(
             # Log stats about the dataloaders
             ds_len = e.dataset_length
             dl_len = len(e)
-            logger.info(f"(dataloader {i} {ds_len = } | {dl_len = }")
+            logger.info(f"dataloader {i} {ds_len = } | {dl_len = }")
 
         if args.linear_probe or args.fine_tuning:
             dataloaders_2 = []
@@ -94,7 +94,7 @@ def learn(
                 # Log stats about the dataloaders
                 ds_len = e.dataset_length
                 dl_len = len(e)
-                logger.info(f"(dataloader {i} {ds_len = } | {dl_len = }")
+                logger.info(f"dataloader {i} {ds_len = } | {dl_len = }")
 
     # Create an algorithm
     algo = algo_wrapper()
@@ -140,6 +140,18 @@ def learn(
             logger.info(f"wandb co error. Retrying in {pause} secs.")
             time.sleep(pause)
     logger.info("wandb co established!")
+
+    globs = [  # wandb x-axis metrics
+        'train',
+        'val', 'val-agg',
+        'test', 'test-agg',
+        'ftop-val', 'ftop-val-agg',  # 'ftop' is for fine-tuning or linear-probing
+        'ftop-test', 'ftop-test-agg',
+    ]
+    for glob in globs:
+        # for each of the globs of metrics, define a custom x-axis
+        wandb.define_metric(f"{glob}/step")
+        wandb.define_metric(f"{glob}/*", step_metric=f"{glob}/step")
 
     while algo.epochs_so_far < args.epochs:
         logger.info("training")

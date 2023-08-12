@@ -76,18 +76,16 @@ class Classifier(object):
         metrics = {'loss': loss}
         return metrics, loss, pred_y
 
-    def send_to_dash(self, metrics, step=None, mode='unspecified'):
+    def send_to_dash(self, metrics, *, step_metric, glob):
         wandb_dict = {
-            f"{mode}/{k}": v.item() if hasattr(v, 'item') else v
+            f"{glob}/{k}": v.item() if hasattr(v, 'item') else v
             for k, v in metrics.items()
         }
-        if mode == 'val':
-            wandb_dict['epoch'] = self.epochs_so_far
-            logger.info("epoch sent to wandb")
-        if step is None:
-            step = self.iters_so_far  # use iters in x-axis by default
-            logger.warn("arg step unspecified; set to iter by default")
-        wandb.log(wandb_dict, step=step)
+        wandb_dict[f"{glob}/step"] = step_metric
+        wandb_dict['epoch'] = self.epochs_so_far
+
+        wandb.log(wandb_dict)
+        logger.info(f"logged this to wandb: {wandb_dict}")
 
     def train(self, train_dataloader, val_dataloader):
 
@@ -126,7 +124,7 @@ class Classifier(object):
                 self.scaler.update()
                 self.opt.zero_grad()
 
-                self.send_to_dash(t_metrics, step=self.iters_so_far, mode='train')
+                self.send_to_dash(t_metrics, step_metric=self.iters_so_far, glob='train')
                 del t_metrics
 
             if ((i + 1) % self.hps.eval_every == 0) or (i + 1 == len(train_dataloader)):
@@ -151,14 +149,14 @@ class Classifier(object):
                         ))
                         self.metrics.step(v_pred_y, v_true_y)
 
-                    self.send_to_dash(v_metrics, step=self.iters_so_far, mode='val')
+                    self.send_to_dash(v_metrics, step_metric=self.iters_so_far, glob='val')
                     del v_metrics
 
                 self.model.train()
 
             self.iters_so_far += 1
 
-        self.send_to_dash(self.metrics.compute(), step=self.epochs_so_far, mode='val-agg')
+        self.send_to_dash(self.metrics.compute(), step_metric=self.epochs_so_far, glob='val-agg')
         self.metrics.reset()
         self.epochs_so_far += 1
 
@@ -192,11 +190,10 @@ class Classifier(object):
                     ))
                     self.metrics.step(pred_y, true_y)
 
-                self.send_to_dash(metrics, step=i, mode='test')
+                self.send_to_dash(metrics, step_metric=i, glob='test')
                 del metrics
 
-        self.send_to_dash(self.metrics.compute(), step=i, mode='test-agg')
-        # use `i` from previous loop to see over how many steps the stats are aggregated
+        self.send_to_dash(self.metrics.compute(), step_metric=0, glob='test-agg')
 
     def save_to_path(self, path, xtra=None):
         suffix = f"model_{self.epochs_so_far}"

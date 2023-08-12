@@ -4,18 +4,18 @@ python main.py \
     --seed 0 \
     --cuda \
     --fp16 \
-    --wandb_project pikachu \
+    --wandb_project ada \
     --dataset_handle bigearthnet \
     --val_split 0.25 \
     --test_split 0.25 \
-    --epoch 2 \
+    --epoch 20 \
     --batch_size 128 \
     --save_freq 1 \
-    --eval_every 16 \
+    --eval_every 8 \
     --lr 1e-3 \
     --wd 0 \
     --clip_norm 0 \
-    --algo_handle 'simclr' \
+    --algo_handle 'classifier' \
     --no-linear_probe \
     --no-fine_tuning \
     --fc_hid_dim 128 \

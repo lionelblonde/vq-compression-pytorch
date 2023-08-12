@@ -67,21 +67,21 @@ class Compressor(object):
         metrics = {'recon_error': recon_error, 'perplexity': perplexity, 'loss': loss}
         return metrics, loss, table
 
-    def send_to_dash(self, metrics, table=None, step=None, mode='unspecified'):
+    def send_to_dash(self, metrics, table=None, *, step_metric, glob):
         wandb_dict = {
-            f"{mode}/{k}": v.item() if hasattr(v, 'item') else v
+            f"{glob}/{k}": v.item() if hasattr(v, 'item') else v
             for k, v in metrics.items()
         }
-        if mode == 'val':
-            wandb_dict['epoch'] = self.epochs_so_far
-            logger.info("epoch sent to wandb")
-        if step is None:
-            step = self.iters_so_far  # use iters in x-axis by default
-            logger.warn("arg step unspecified; set to iter by default")
-        wandb.log(wandb_dict, step=step)
+        wandb_dict[f"{glob}/step"] = step_metric
+        wandb_dict['epoch'] = self.epochs_so_far
+
+        wandb.log(wandb_dict, commit=(table is None))
+
+        logger.info(f"logged this to wandb: {wandb_dict}")
+
         if table is not None:
             wandb_table = wandb.Table(data=table, columns=["c_idx", "usage(c)"])
-            wandb.log({f"{mode}/usage_plot": wandb_table})
+            wandb.log({f"{glob}/usage_plot": wandb_table})
 
     def train(self, train_dataloader, val_dataloader):
 
@@ -114,7 +114,7 @@ class Compressor(object):
                 self.scaler.update()
                 self.opt.zero_grad()
 
-                self.send_to_dash(t_metrics, step=self.iters_so_far, mode='train')
+                self.send_to_dash(t_metrics, step_metric=self.iters_so_far, glob='train')
                 del t_metrics
 
             if ((i + 1) % self.hps.eval_every == 0) or (i + 1 == len(train_dataloader)):
@@ -131,7 +131,7 @@ class Compressor(object):
                     with self.ctx:
                         v_metrics, _, _ = self.compute_loss(v_x)
 
-                    self.send_to_dash(v_metrics, step=self.iters_so_far, mode='val')
+                    self.send_to_dash(v_metrics, step_metric=self.iters_so_far, glob='val')
                     del v_metrics
 
                 self.model.train()
@@ -156,7 +156,7 @@ class Compressor(object):
                 with self.ctx:
                     metrics, _, table = self.compute_loss(x)
 
-                self.send_to_dash(metrics, table, step=i, mode='test')
+                self.send_to_dash(metrics, table, step_metric=i, glob='test')
                 del metrics
 
     def save_to_path(self, path, xtra=None):
