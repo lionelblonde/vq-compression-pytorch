@@ -526,7 +526,6 @@ class SimCLR(object):
                 del metrics
 
         self.send_to_dash(self.metrics.compute(), step_metric=0, glob='ftop-test-agg')
-        # use `i` from previous loop to see over how many steps the stats are aggregated
 
     def save_to_path(self, path, xtra=None):
         suffix = f"model_{self.epochs_so_far}"

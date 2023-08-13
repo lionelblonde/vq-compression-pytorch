@@ -43,7 +43,7 @@ fc_out_dim: 64
 ntx_temp: 0.07
 
 # fine-tuning or linear probing
-load_checkpoint: 'model_4_done.tar'
+load_checkpoint: 'model_8.tar'
 linear_probe: true
 fine_tuning: false
 ftop_epochs: 90

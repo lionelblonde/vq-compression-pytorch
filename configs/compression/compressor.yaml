@@ -19,7 +19,7 @@ test_split: 0.25
 epochs: 100
 batch_size: 128
 save_freq: 1
-eval_every: 100
+eval_every: 16
 
 # opt
 lr: 1e-4
