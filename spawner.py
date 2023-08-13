@@ -142,6 +142,7 @@ class Spawner(object):
             'epochs': self.config['epochs'],
             'batch_size': self.config['batch_size'],
             'save_freq': self.config['save_freq'],
+            'eval_every': self.config['eval_every'],
 
             # opt
             'lr': self.config['lr'],
