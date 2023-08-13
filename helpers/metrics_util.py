@@ -57,8 +57,8 @@ class Metrics(object):
 
     @staticmethod
     def subset_accuracy(pred, answer, weights, use_weights=False):
-        # weights are ununsed here, because it makes no sense
-        # insofar as the subset accuracy is not "per label"
+        # `weights` are kept here to have unified signatures
+        # but their use makes little sense here, their use is not planned
 
         # unpack the sizes for us to use
         n, num_labels = pred.size()  # arbitrary
@@ -153,6 +153,7 @@ class MetricsAggregator(object):
         self.tot_p_i_true = 0
         self.tot_a_i_true = 0
         self.tot_a_i_false = 0
+        self.tot_subset_corr = 0
 
     def step(self, pred, answer):
         # integrate the stats to the system
@@ -187,7 +188,16 @@ class MetricsAggregator(object):
             self.tot_corr_true += corr_true
             self.tot_corr_false += corr_false
 
+        for j in range(self.batch_size):
+            # going over the rows now
+
+            p_j, a_j = pred[j, :], answer[j, :]
+
+            self.tot_subset_corr += (p_j == a_j).prod()  # zero unless all matching
+
     def compute(self):
+        if self.n == 0:
+            raise ValueError(f"have not seen any sample yet: {self.n =}")
         # assemble the metrics
         accu = self.tot_corr / (self.n * self.num_labels)
         prec = self.tot_corr_true / self.tot_p_i_true
@@ -197,6 +207,7 @@ class MetricsAggregator(object):
         f1 = Metrics.fbeta(prec, reca, beta=1.)
         f2 = Metrics.fbeta(prec, reca, beta=2.)
         b_accu = (reca + spec) / 2
+        s_accu = self.tot_subset_corr / self.n
 
         metrics = {
             'accuracy': accu,
@@ -206,6 +217,7 @@ class MetricsAggregator(object):
             'f2': f2,
             'specificity': spec,
             'balanced_accuracy': b_accu,
+            'subset_accuracy': s_accu,
         }
 
         return metrics
