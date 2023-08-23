@@ -21,26 +21,6 @@ def read_from_file(path: str, parent: str = "") -> List[str]:
     return content
 
 
-def read_path_from_file(path: str, parent: str, truncate_at: int = 100) -> List[Path]:
-    content = read_from_file(path, parent)
-    if truncate_at is None:
-        content = [Path(line) for line in content]
-    else:
-        content = [Path(line) for i, line in enumerate(content)
-                   if i < truncate_at]
-    return content
-
-
-def read_list_from_file(path: str, truncate_at: int = 100) -> List[List[int]]:
-    content = read_from_file(path)
-    if truncate_at is None:
-        content = [[int(li.rstrip()) for li in line[1:-1].split(',')] for line in content]
-    else:
-        content = [[int(li.rstrip()) for li in line[1:-1].split(',')] for i, line in enumerate(content)
-                   if i < truncate_at]
-    return content
-
-
 def save2file(filepath: Path, content: List[str]) -> None:
     with open(path2str(filepath), "w") as f:
         for line in content:

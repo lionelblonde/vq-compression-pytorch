@@ -55,13 +55,7 @@ def agg_argparser():
         help="path to folders with images to train on.",
     )
     parser.add_argument(
-        "--val_split", type=float, default=0.15,
-    )
-    parser.add_argument(
-        "--test_split", type=float, default=0.15,
-    )
-    parser.add_argument(
-        "--truncate_at", type=int, default=100,
+        "--truncate_at", type=float, default=100.,
         help="amount of data to keep in %",
     )
     parser.add_argument(

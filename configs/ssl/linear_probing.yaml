@@ -7,13 +7,11 @@ cuda: true
 fp16: true
 
 # logging
-wandb_project: 'cubone'
+wandb_project: 'winter'
 
 # dataset
 dataset_handle: 'bigearthnet'
 # data path is handled by the spawner w/ an environ variable
-val_split: 0.25
-test_split: 0.25
 num_workers: 4
 
 # training
@@ -46,6 +44,6 @@ ntx_temp: 0.07
 load_checkpoint: 'model_10_done.tar'
 linear_probe: true
 fine_tuning: false
-ftop_epochs: 90
+ftop_epochs: 10
 ftop_batch_size: 128
 

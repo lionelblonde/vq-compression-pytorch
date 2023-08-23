@@ -33,11 +33,13 @@ def learn(
     timed = timed_cm_wrapper(logger, use=DEBUG)
 
     with timed("splitting"):
-        paths_list = split_bigearthnet_official()
+        paths_list = split_bigearthnet_official(num_classes=args.num_classes)
 
     with timed("dataloading"):
         dataloaders = []
         tmpdict = {
+            "num_classes": args.num_classes,
+            "seed": args.seed,
             "data_path": args.data_path,
             "dataset_handle": args.dataset_handle,
             "batch_size": args.batch_size,
@@ -71,6 +73,8 @@ def learn(
         if args.linear_probe or args.fine_tuning:
             dataloaders_2 = []
             tmpdict = {
+                "num_classes": args.num_classes,
+                "seed": args.seed,
                 "data_path": args.data_path,
                 "dataset_handle": args.dataset_handle,
                 "batch_size": args.ftop_batch_size,

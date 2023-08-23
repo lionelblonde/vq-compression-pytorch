@@ -7,13 +7,11 @@ cuda: true
 fp16: true
 
 # logging
-wandb_project: 'psyduck'
+wandb_project: 'autumn'
 
 # dataset
 dataset_handle: 'bigearthnet'
 # data path is handled by the spawner w/ an environ variable
-val_split: 0.25
-test_split: 0.25
 
 # training
 epochs: 100

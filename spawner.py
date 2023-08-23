@@ -135,8 +135,6 @@ class Spawner(object):
             # dataset
             'dataset_handle': self.config['dataset_handle'],
             'data_path': self.data_path,  # assembled earlier here
-            'val_split': self.config['val_split'],
-            'test_split': self.config['test_split'],
 
             # training
             'epochs': self.config['epochs'],

@@ -7,13 +7,11 @@ cuda: true
 fp16: true
 
 # logging
-wandb_project: 'cubone'
+wandb_project: 'winter'
 
 # dataset
 dataset_handle: 'bigearthnet'
 # data path is handled by the spawner w/ an environ variable
-val_split: 0.25
-test_split: 0.25
 num_workers: 0 # no parallelism in dataloader, PyTorch bug
 
 # training

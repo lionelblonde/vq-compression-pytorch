@@ -23,6 +23,8 @@ class BigEarthNetDataloader(DataLoader):
 def get_dataloader(
     *,
     dataset_handle: str,
+    num_classes: int,
+    seed: str,
     data_path: str,
     split_path: str,
     batch_size: int,
@@ -38,6 +40,8 @@ def get_dataloader(
     if dataset_handle == 'bigearthnet':
         dataloader = BigEarthNetDataloader(
             BigEarthNetDataset(
+                num_classes=num_classes,
+                seed=seed,
                 data_path=data_path,
                 split_path=split_path,
                 image_size=120,

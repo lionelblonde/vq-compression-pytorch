@@ -8,7 +8,6 @@ import orchestrator
 from helpers import logger
 from helpers.argparser_util import agg_argparser
 from helpers.experiment import ExperimentInitializer
-from helpers.dataloader_utils.bigearthnet_utils.dataset import BigEarthNetDataset
 from algos.classification.classifier import Classifier
 from algos.ssl.simclr import SimCLR
 from algos.compression.compressor import Compressor
@@ -47,7 +46,7 @@ def run(args):
     torch.cuda.manual_seed_all(args.seed)
 
     if args.dataset_handle == 'bigearthnet':
-        args.num_classes = BigEarthNetDataset.num_classes()
+        args.num_classes = 19  # original classes: 43
 
     if args.algo_handle == 'classifier':
         algo_class_handle = Classifier
