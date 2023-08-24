@@ -35,3 +35,5 @@ algo_handle: 'classifier'
 backbone: 'resnet101'
 pretrained_w_imagenet: true
 fc_hid_dim: 128
+num_classes: 19
+

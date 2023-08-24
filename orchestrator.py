@@ -9,7 +9,7 @@ import numpy as np
 from helpers import logger
 from helpers.console_util import timed_cm_wrapper, log_epoch_info
 from helpers.dataloader_utils.bigearthnet_utils.dataloader import get_dataloader
-from helpers.dataloader_utils.bigearthnet_utils.splitter import split_bigearthnet_official
+from helpers.dataloader_utils.bigearthnet_utils.splitter import split_dataset
 
 
 debug_lvl = os.environ.get('DEBUG_LVL', 0)
@@ -33,7 +33,7 @@ def learn(
     timed = timed_cm_wrapper(logger, use=DEBUG)
 
     with timed("splitting"):
-        paths_list = split_bigearthnet_official(num_classes=args.num_classes)
+        paths_list = split_dataset(args.dataset_handle, args.num_classes)
 
     with timed("dataloading"):
         dataloaders = []

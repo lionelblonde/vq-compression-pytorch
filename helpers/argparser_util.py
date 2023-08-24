@@ -116,6 +116,9 @@ def agg_argparser():
     parser.add_argument(
         "--fc_hid_dim", type=int, default=128,
     )
+    parser.add_argument(
+        "--num_classes", type=int, default=19,
+    )
 
     # SIMCLR
 

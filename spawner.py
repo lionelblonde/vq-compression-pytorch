@@ -163,6 +163,8 @@ class Spawner(object):
                 'backbone': self.config['backbone'],
                 'pretrained_w_imagenet': self.config['pretrained_w_imagenet'],
                 'fc_hid_dim': self.config['fc_hid_dim'],
+                # algorithm
+                'num_classes': self.config['num_classes'],
             })
         elif algo_handle == 'simclr':
             hpmap.update({
@@ -174,6 +176,7 @@ class Spawner(object):
                 # algorithm
                 'ntx_temp': self.config['ntx_temp'],
                 # fine-tuning or linear probing
+                'num_classes': self.config['num_classes'],
                 'linear_probe': self.config['linear_probe'],
                 'fine_tuning': self.config['fine_tuning'],
                 'ftop_epochs': self.config['ftop_epochs'],
