@@ -23,7 +23,7 @@ python main.py \
     --ftop_epochs 0 \
     --ftop_batch_size 256 \
     --data_path /hdd/datasets/BigEarthNet-v1.0 \
-    --truncate_at 0.01 \
+    --truncate_at 100 \
     --acc_grad_steps 8 \
     --num_workers 4 #\
     #--load_checkpoint /hdd/models/SIMCLR_MODELS/phupu_weerer_ceeree-simclr-3epochs/model_3_done.tar

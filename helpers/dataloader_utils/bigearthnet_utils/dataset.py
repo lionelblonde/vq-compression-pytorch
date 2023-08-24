@@ -149,19 +149,24 @@ class BigEarthNetDataset(Dataset):
                 labels_raw = load_json(
                     path.joinpath(f"{self.data_point_ids[idx]}_labels_metadata.json")
                 )["labels"]
+
                 labels_instance = [0] * self.num_classes
                 # for every ON label of the instance, set the index in the multi-hot ON
                 for label in labels_raw:
                     assert label in LABELS['43'], f"{label} is not a valid label."
                     idx_43 = LABELS['43'].index(label)
-                    if self.num_classes == 19:  # if shrinked version, use label conversion
+                    if self.num_classes == 1:
+                        if idx_43 == 2:  # the label files etc have been created for class 2
+                            labels_instance[0] = 1
+                            break
+                    elif self.num_classes == 19:  # if shrinked version, use label conversion
                         for j, idx_43_group in enumerate(LABEL_CONVERSION):
                             if idx_43 in idx_43_group:
                                 idx_19 = j
                                 labels_instance[idx_19] = 1
                                 break  # no repetition in conversion table
                         # note, some of the 43 labels are dropped completely from conversion to 19
-                    else:
+                    else:  # default case: complete, 43 classes
                         labels_instance[idx_43] = 1
 
                 labels.append(labels_instance)

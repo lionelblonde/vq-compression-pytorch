@@ -28,11 +28,11 @@ def get_dataloader(
     data_path: str,
     split_path: str,
     batch_size: int,
+    truncate_at: float,
     train_stage: bool = False,
     num_transforms: int = 2,
     with_labels: bool = False,
     memory: bool = False,
-    truncate_at: int = 100,
     num_workers: int = 0,
     shuffle: bool = False,
 ):

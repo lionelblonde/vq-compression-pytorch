@@ -46,7 +46,7 @@ def run(args):
     torch.cuda.manual_seed_all(args.seed)
 
     if args.dataset_handle == 'bigearthnet':
-        args.num_classes = 19  # original classes: 43
+        args.num_classes = 1  # original classes: 43, reduced: 19; 1 if class #2 only (in 43 list)
 
     if args.algo_handle == 'classifier':
         algo_class_handle = Classifier
