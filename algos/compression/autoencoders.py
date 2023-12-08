@@ -9,13 +9,14 @@ from algos.compression.histograms import Histogram
 
 class VectorQuantizationAutoEncoder(nn.Module):
 
-    def __init__(self, hps):
+    def __init__(self, hps, device):
         super().__init__()
         self.hps = hps
-        self.encoder = EncoderModel(self.hps)
-        self.decoder = DecoderModel(self.hps)
-        self.vector_quantizer = VectorQuantizer(self.hps)
-        self.histogram = Histogram(self.hps)
+        self.device = device
+        self.encoder = EncoderModel(self.hps).to(self.device)
+        self.decoder = DecoderModel(self.hps).to(self.device)
+        self.vector_quantizer = VectorQuantizer(self.hps, self.device).to(self.device)
+        self.histogram = Histogram(self.hps).to(self.device)
 
     def forward(self, x):
         z = self.encoder(x)
