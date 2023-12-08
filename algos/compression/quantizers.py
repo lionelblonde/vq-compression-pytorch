@@ -1,13 +1,14 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional as func
 
 
 class VectorQuantizer(nn.Module):
 
-    def __init__(self, hps):
+    def __init__(self, hps, device):
         super().__init__()
         self.hps = hps
+        self.device = device
         self.use_vqvae_internals = False  # we don't care much about the original vqvae internals > posterity
         self.commitment_cost = 0.25  # only used if using the vq loss from the vqvae original paper
         # Create the embedding, with number and embeddings and embedding dimensions as parameters
@@ -39,7 +40,7 @@ class VectorQuantizer(nn.Module):
         encoding_indices = torch.argmin(distances, dim=-1)  # could also use dim=1 since 2-dim
 
         # Create also a "soft" version of the encoding indices: normalized distances w.r.t. codebook centers
-        normalized_proximities = F.softmax(-distances, dim=-1)  # this is of size [BxHxW, D]
+        normalized_proximities = func.softmax(-distances, dim=-1)  # this is of size [BxHxW, D]
 
         # Quantize the latents z
         qz = self.centers(encoding_indices)
@@ -48,15 +49,15 @@ class VectorQuantizer(nn.Module):
 
         # Create the encodings from the obtained encoding indices (closest vectors from embedding)
         encoding_indices = encoding_indices.unsqueeze(dim=1)  # this has size [BxHxW, 1]
-        encodings = torch.zeros(encoding_indices.shape[0], self.hps.c_num)   # this has size [BxHxW, D]
+        encodings = torch.zeros(encoding_indices.shape[0], self.hps.c_num).to(self.device)   # this has size [BxHxW, D]
         encodings.scatter_(1, encoding_indices, 1)  # scatter is the reverse operation of gather
         # the operation does not change the size; encodings still has size [BxHxW, D]
 
         if self.use_vqvae_internals:
 
             # Compute the vector-quantization losses
-            q_loss = F.mse_loss(z_orig.detach(), qz)  # codebook loss
-            e_loss = F.mse_loss(z_orig, qz.detach())  # commitment loss
+            q_loss = func.mse_loss(z_orig.detach(), qz)  # codebook loss
+            e_loss = func.mse_loss(z_orig, qz.detach())  # commitment loss
             vq_loss = q_loss + (self.commitment_cost * e_loss)
 
             # Make the quantized latents equal to themselves during the forward pass,

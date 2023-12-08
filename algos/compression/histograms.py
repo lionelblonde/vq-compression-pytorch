@@ -1,15 +1,15 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional as func
 
 
-def soft_cross_entropy(input, target):
+def soft_cross_entropy(input_, target):
     """Cross-entropy with soft targets, e.g. result of targets=softmax(h).
     A priori not available as a bundled function in PyTorch at the time of writing.
 
     Both input and target are of size [BxHxW, D].
     """
-    logq = -F.log_softmax(input, dim=-1)
+    logq = -func.log_softmax(input_, dim=-1)
     sce = (target * logq).sum(dim=-1)
     return sce.mean()
 
@@ -48,7 +48,7 @@ class Histogram(nn.Module):
         params = self.thetas.expand(targets.shape[0], -1)  # if non-singleton dim, expand unqueezes at 0 by default
 
         # Return the cross-entropy loss between the learned parameters thetas and the detached encoding indices
-        return F.cross_entropy(params, targets)
+        return func.cross_entropy(params, targets)
 
     def soft_ce(self, targets):
         """Soft version of the cross-entropy loss"""
