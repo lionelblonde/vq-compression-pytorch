@@ -23,15 +23,12 @@ class BigEarthNetDataloader(DataLoader):
 def get_dataloader(
     *,
     dataset_handle: str,
-    num_classes: int,
     seed: str,
     data_path: str,
     split_path: str,
     batch_size: int,
     truncate_at: float,
     train_stage: bool = False,
-    num_transforms: int = 2,
-    with_labels: bool = False,
     memory: bool = False,
     num_workers: int = 0,
     shuffle: bool = False,
@@ -40,15 +37,12 @@ def get_dataloader(
     if dataset_handle == 'bigearthnet':
         dataloader = BigEarthNetDataloader(
             BigEarthNetDataset(
-                num_classes=num_classes,
                 seed=seed,
                 data_path=data_path,
                 split_path=split_path,
                 image_size=120,
                 train_stage=train_stage,
-                num_transforms=num_transforms,
                 bands=BigEarthNetDataset.all_bands(),
-                with_labels=with_labels,
                 memory=memory,
                 truncate_at=truncate_at,
             ),

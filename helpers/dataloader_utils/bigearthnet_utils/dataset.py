@@ -11,11 +11,10 @@ import torch
 from torch.utils.data import Dataset
 
 from helpers import logger
-from helpers.dataloader_utils import read_from_file, save2file
+from helpers.dataloader_utils import read_from_file
 from helpers.dataloader_utils.bigearthnet_utils.constants import BAND_NAMES, RGB_BANDS_NAMES
 from helpers.dataloader_utils.bigearthnet_utils.constants import LABELS, LABEL_CONVERSION
 from helpers.dataloader_utils.bigearthnet_utils.constants import BANDS_10M, BANDS_20M, BAND_STATS
-from helpers.dataloader_utils.bigearthnet_utils.transform_util import TransformsToolkit
 
 
 def load_json(filename):
@@ -26,38 +25,24 @@ class BigEarthNetDataset(Dataset):
 
     def __init__(
         self,
-        num_classes: int,
         seed: int,
         data_path: str,
         split_path: str,
         truncate_at: float,
         image_size: int = 120,
         train_stage: bool = False,
-        num_transforms: int = 2,
-        with_labels: bool = False,
         bands: List[str] = RGB_BANDS_NAMES,  # default: bands corresponding to RGB
         memory: bool = False,
     ):
         """`number` is the number of patches to read (-1 for all).
         `memory` indicate if the data should be first put into memory or read on the fly.
         """
-        assert num_transforms in [1, 2] and isinstance(num_transforms, int)
-
-        self.train_stage = train_stage
-
-        if num_transforms == 2 and self.train_stage:
-            self.data_augment_f = TransformsToolkit.transform_bigearthnet(image_size)
-        else:
-            self.data_augment_f = None
-
-        self.num_classes = num_classes
 
         self.split_path = split_path
-        self.with_labels = with_labels
         self.bands = bands
         self.memory = memory
 
-        if self.train_stage:
+        if train_stage:
             assert 0 < truncate_at <= 100
             tot_len = len(read_from_file(self.split_path, data_path))
             self.truncate_at = int(
@@ -70,7 +55,7 @@ class BigEarthNetDataset(Dataset):
             )  # sanity check
 
         content = read_from_file(self.split_path, parent=data_path)
-        if self.train_stage:  # truncate if asked, but only in for the training set
+        if train_stage:  # truncate if asked, but only in for the training set
             all_the_is = np.arange(0, len(content))
             self.is2keep = np.random.default_rng(seed).choice(
                 all_the_is,
@@ -89,20 +74,6 @@ class BigEarthNetDataset(Dataset):
         if self.memory:
             self.data = self.read_data(self.folder_path_list)
 
-        if self.with_labels:
-            self.labels = np.array(self.get_labels_as_multi_hot_vector())  # always load in memory whole
-            logger.info("we compute and plot the imbalance-ness now")
-            n_samples, n_classes = self.labels.shape
-            self.balances = self.labels.sum(axis=0) / n_samples
-            # do some nice plottings in ascii style
-            for c in range(n_classes):
-                balance = self.balances[c]
-                width = int(balance * 150)
-                bar = (f"class={str(c).zfill(3)}" +
-                       "[" + ("@" * width) + ("~" * (150 - width)) + "]" +
-                       f"< {balance * 100:.3f}%")
-                logger.info(bar)
-
     @staticmethod
     def rgb() -> List[str]:
         return RGB_BANDS_NAMES
@@ -118,62 +89,6 @@ class BigEarthNetDataset(Dataset):
 
     def get_data_point_ids(self) -> List[str]:
         return [path.name for path in self.folder_path_list]
-
-    def get_labels_as_multi_hot_vector(self) -> List[List[int]]:
-        """Get the true labels as a multi-hot vector"""
-        where_splits = Path(self.split_path).parent.absolute()
-
-        labels_file_path = where_splits.joinpath('labels')
-        labels_file_path.mkdir(exist_ok=True)
-        labels_file_path = labels_file_path.joinpath(Path(self.split_path).name)
-        logger.info(f"{labels_file_path = }")
-
-        if labels_file_path.exists():
-            # read the labels from file, and return them
-            content = read_from_file(labels_file_path)
-            if self.train_stage:
-                labels = [
-                    [int(li.rstrip()) for li in line[1:-1].split(',')]
-                     for i, line in enumerate(content)
-                     if i in self.is2keep
-                ]
-            else:
-                labels = [
-                    [int(li.rstrip()) for li in line[1:-1].split(',')]
-                     for line in content
-                ]
-        else:
-            # create the labels, save them to file, and return them
-            labels = []
-            for idx, path in enumerate(tqdm(self.folder_path_list)):
-                labels_raw = load_json(
-                    path.joinpath(f"{self.data_point_ids[idx]}_labels_metadata.json")
-                )["labels"]
-
-                labels_instance = [0] * self.num_classes
-                # for every ON label of the instance, set the index in the multi-hot ON
-                for label in labels_raw:
-                    assert label in LABELS['43'], f"{label} is not a valid label."
-                    idx_43 = LABELS['43'].index(label)
-                    if self.num_classes == 1:
-                        if idx_43 == 2:  # the label files etc have been created for class 2
-                            labels_instance[0] = 1
-                            break
-                    elif self.num_classes == 19:  # if shrinked version, use label conversion
-                        for j, idx_43_group in enumerate(LABEL_CONVERSION):
-                            if idx_43 in idx_43_group:
-                                idx_19 = j
-                                labels_instance[idx_19] = 1
-                                break  # no repetition in conversion table
-                        # note, some of the 43 labels are dropped completely from conversion to 19
-                    else:  # default case: complete, 43 classes
-                        labels_instance[idx_43] = 1
-
-                labels.append(labels_instance)
-            # save to file
-            save2file(labels_file_path, labels)
-
-        return labels
 
     def read_data(
         self, folder_path_list: List[Path], bands: Optional[List[str]] = None
@@ -222,21 +137,9 @@ class BigEarthNetDataset(Dataset):
         assert isinstance(index, int), "index must be int"
 
         if self.memory:
-            data = torch.Tensor(self.data[index])
+            output = torch.Tensor(self.data[index])
         else:
-            data = self.read_data([self.folder_path_list[index]], bands=bands)
+            output = self.read_data([self.folder_path_list[index]], bands=bands)
 
-        if self.data_augment_f is not None:
-            output = torch.stack([
-                self.data_augment_f(data),
-                self.data_augment_f(data),  # two transforms
-            ])
-        else:
-            output = data
-
-        if self.with_labels:
-            labels_for_output = torch.Tensor(self.labels[index])
-            return (output, labels_for_output)
-        else:
-            return output
+        return output
 

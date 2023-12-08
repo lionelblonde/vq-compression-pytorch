@@ -24,27 +24,22 @@ def learn(
     args,
     algo_wrapper,
     experiment_name,
-    num_transforms,
     with_labels,
-    knn_eval,
 ):
 
     # Create context manager that records the time taken by encapsulated ops
     timed = timed_cm_wrapper(logger, use=DEBUG)
 
     with timed("splitting"):
-        paths_list = split_dataset(args.dataset_handle, args.num_classes)
+        paths_list = split_dataset(args.dataset_handle, num_classes=43)  # 19 is another option here
 
     with timed("dataloading"):
         dataloaders = []
         tmpdict = {
-            "num_classes": args.num_classes,
             "seed": args.seed,
             "data_path": args.data_path,
             "dataset_handle": args.dataset_handle,
             "batch_size": args.batch_size,
-            "num_transforms": num_transforms,
-            "with_labels": with_labels,
             "truncate_at": args.truncate_at,
             "num_workers": args.num_workers,
         }
@@ -58,47 +53,15 @@ def learn(
         dataloaders.append(get_dataloader(
             **tmpdict, split_path=paths_list[2],
         ))
-
-        if knn_eval:
-            dataloaders.append(get_dataloader(
-                **tmpdict, split_path=paths_list[0], shuffle=True,
-            ))
-
         for i, e in enumerate(dataloaders):
             # Log stats about the dataloaders
             ds_len = e.dataset_length
             dl_len = len(e)
-            logger.info(f"dataloader {i} {ds_len = } | {dl_len = }")
-
-        if args.linear_probe or args.fine_tuning:
-            dataloaders_2 = []
-            tmpdict = {
-                "num_classes": args.num_classes,
-                "seed": args.seed,
-                "data_path": args.data_path,
-                "dataset_handle": args.dataset_handle,
-                "batch_size": args.ftop_batch_size,
-                "num_transforms": 1,
-                "with_labels": with_labels,
-                "truncate_at": args.truncate_at,
-                "num_workers": args.num_workers,
-            }
-            # Create the dataloaders
-            dataloaders_2.append(get_dataloader(
-                **tmpdict, split_path=paths_list[0], train_stage=True, shuffle=True,
-            ))
-            dataloaders_2.append(get_dataloader(
-                **tmpdict, split_path=paths_list[1],
-            ))
-            dataloaders_2.append(get_dataloader(
-                **tmpdict, split_path=paths_list[2],
-            ))
-
-            for i, e in enumerate(dataloaders_2):
-                # Log stats about the dataloaders
-                ds_len = e.dataset_length
-                dl_len = len(e)
-                logger.info(f"dataloader {i} {ds_len = } | {dl_len = }")
+            logger.info(
+                f"DATALOADER#{i} -|-"
+                f"SETLEN={str(ds_len).zfill(7)} -|-"
+                f"DLDLEN={str(dl_len).zfill(7)}"
+            )
 
     # Create an algorithm
     algo = algo_wrapper()
@@ -107,7 +70,7 @@ def learn(
 
     # Set up model save directory
     ckpt_dir = Path(args.checkpoint_dir) / experiment_name
-    Path.mkdir(ckpt_dir, exist_ok=True)
+    Path(ckpt_dir).mkdir(parents=True, exist_ok=True)
     # Save the model as a dry run, to avoid bad surprises at the end
     algo.save_to_path(ckpt_dir, xtra="dryrun")
     logger.info(f"dry run. Saving model @: {ckpt_dir}")
@@ -149,8 +112,6 @@ def learn(
         'train',
         'val', 'val-agg',
         'test', 'test-agg',
-        'ftop-val', 'ftop-val-agg',  # 'ftop' is for fine-tuning or linear-probing
-        'ftop-test', 'ftop-test-agg',
     ]
     for glob in globs:
         # for each of the globs of metrics, define a custom x-axis
@@ -162,10 +123,7 @@ def learn(
 
         log_epoch_info(logger, algo.epochs_so_far, args.epochs, tstart)
 
-        if knn_eval:
-            algo.train(dataloaders[0], dataloaders[1], dataloaders[3])  # [2] is test
-        else:
-            algo.train(dataloaders[0], dataloaders[1])
+        algo.train(dataloaders[0], dataloaders[1])
 
         if algo.epochs_so_far % args.save_freq == 0:
             algo.save_to_path(ckpt_dir)
@@ -176,35 +134,5 @@ def learn(
         algo.save_to_path(ckpt_dir, xtra="done")
         logger.info(f"we're done training. Saving model @: {ckpt_dir}.\nbye.")
 
-    if args.linear_probe or args.fine_tuning:
-        if args.linear_probe:
-            logger.info("linear-probing")
-        else:
-            logger.info("fine-tuning")
-
-        tstart = time.time()
-
-        algo.renew_head()  # also resets the epoch counter!
-
-        while algo.epochs_so_far < args.ftop_epochs:
-
-            log_epoch_info(logger, algo.epochs_so_far, args.ftop_epochs, tstart)
-
-            algo.ftop_train(dataloaders_2[0], dataloaders_2[1])
-
-        logger.info("testing")
-        algo.ftop_test(dataloaders_2[2])
-
-        # Save once we are done
-        algo.save_to_path(ckpt_dir, xtra="with_new_head_done")
-        logger.info(f"we're done. Saving model @: {ckpt_dir}.\nbye.")
-
-        logger.info("now we are really done. bye.")
-
-    else:
-        logger.info("testing")
-        if args.algo_handle == 'simclr':  # and any future potential contrastive-loss algo
-            algo.test(dataloaders[2], dataloaders[3])
-        else:
-            algo.test(dataloaders[2])
-
+    logger.info("testing")
+    algo.test(dataloaders[2])

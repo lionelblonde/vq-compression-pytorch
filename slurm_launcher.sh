@@ -6,7 +6,7 @@ export MODEL_DIR=/home/users/b/blondeli/Code/geo-pytorch/data/checkpoints/sheepa
 # the latter var is not always used but need be here for some configs
 
 python spawner.py \
-    --config configs/ssl/linear_probing.yaml \
+    --config configs/vqvae/vqvae.yaml \
     --conda_env geocuda \
     --deployment slurm \
     --num_seeds 1 \

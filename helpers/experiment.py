@@ -72,10 +72,10 @@ class ExperimentInitializer:
             # If the uuid has been provided, use it.
             return self.uuid
         # Assemble the uuid
-        name = self.uuid + '.'
+        name = self.uuid
         try:
             out = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'])
-            name += f"gitSHA_{out.strip().decode('ascii')}."
+            name += f".gitSHA_{out.strip().decode('ascii')}"
         except OSError:
              pass
         name += f".{self.args.algo_handle}"

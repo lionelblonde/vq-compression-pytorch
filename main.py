@@ -8,8 +8,6 @@ import orchestrator
 from helpers import logger
 from helpers.argparser_util import agg_argparser
 from helpers.experiment import ExperimentInitializer
-from algos.classification.classifier import Classifier
-from algos.ssl.simclr import SimCLR
 from algos.compression.compressor import Compressor
 
 
@@ -46,22 +44,11 @@ def run(args):
     torch.cuda.manual_seed_all(args.seed)
 
     if args.dataset_handle == 'bigearthnet':
-        assert args.num_classes in [43, 19, 1], \
-            "original classes: 43, reduced: 19; 1 if class #2 only (in 43 list)"
+        pass
     else:
         raise NotImplementedError("dataset not covered")
 
-    if args.algo_handle == 'classifier':
-        algo_class_handle = Classifier
-        num_transforms = 1
-        with_labels = True
-        knn_eval = False
-    elif args.algo_handle == 'simclr':
-        algo_class_handle = SimCLR
-        num_transforms = 2
-        with_labels = True
-        knn_eval = True
-    elif args.algo_handle == 'compressor':
+    if args.algo_handle == 'compressor':
         algo_class_handle = Compressor
         num_transforms = 1
         with_labels = False
@@ -80,9 +67,7 @@ def run(args):
         args=args,
         algo_wrapper=algo_wrapper,
         experiment_name=experiment_name,
-        num_transforms=num_transforms,
         with_labels=with_labels,
-        knn_eval=knn_eval,
     )
 
 

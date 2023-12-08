@@ -101,57 +101,15 @@ def agg_argparser():
     # algo
     parser.add_argument(
         "--algo_handle", type=str,
-        choices=['classifier', 'simclr', 'compressor'],
+        choices=['compressor'],
         default=None,
     )
-
-    # CLASSIFIER
-
-    parser.add_argument(
-        "--backbone", type=str, default=None,
-    )
-    boolean_flag(
-        parser, "pretrained_w_imagenet", default=False,
-    )
-    parser.add_argument(
-        "--fc_hid_dim", type=int, default=128,
-    )
-    parser.add_argument(
-        "--num_classes", type=int, default=19,
-    )
-
-    # SIMCLR
-
-    parser.add_argument(
-        "--fc_out_dim", type=int, default=64,
-    )
-    parser.add_argument(
-        "--ntx_temp", type=float, default=0.07,
-    )
-    parser.add_argument(
-        "--load_checkpoint", type=str, default=None,
-    )
-    boolean_flag(
-        parser, "linear_probe", default=False,
-    )
-    boolean_flag(
-        parser, "fine_tuning", default=False,
-    )
-    parser.add_argument(
-        "--ftop_epochs", type=int, default=10,
-    )  # same as SimCLR
-    parser.add_argument(
-        "--ftop_batch_size", type=int, default=128,
-    )
-
-    # COMPRESSOR
-
     parser.add_argument(
         "--max_lr", type=float, default=1e-3,
         help="max lr for OneCycleLR scheduler",
     )
     parser.add_argument(
-        "--in_channels", type=int, default=3,
+        "--in_channels", type=int, default=10,
         help="input channels",
     )
     parser.add_argument(

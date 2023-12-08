@@ -157,34 +157,7 @@ class Spawner(object):
             hpmap.update({'truncate_at': self.config['truncate_at']})
 
         algo_handle = hpmap['algo_handle']
-        if algo_handle == 'classifier':
-            hpmap.update({
-                # model architecture
-                'backbone': self.config['backbone'],
-                'pretrained_w_imagenet': self.config['pretrained_w_imagenet'],
-                'fc_hid_dim': self.config['fc_hid_dim'],
-                # algorithm
-                'num_classes': self.config['num_classes'],
-            })
-        elif algo_handle == 'simclr':
-            hpmap.update({
-                # model architecture
-                'backbone': self.config['backbone'],
-                'pretrained_w_imagenet': self.config['pretrained_w_imagenet'],
-                'fc_hid_dim': self.config['fc_hid_dim'],
-                'fc_out_dim': self.config['fc_out_dim'],
-                # algorithm
-                'ntx_temp': self.config['ntx_temp'],
-                # fine-tuning or linear probing
-                'num_classes': self.config['num_classes'],
-                'linear_probe': self.config['linear_probe'],
-                'fine_tuning': self.config['fine_tuning'],
-                'ftop_epochs': self.config['ftop_epochs'],
-                'ftop_batch_size': self.config['ftop_batch_size'],
-            })
-            if 'load_checkpoint' in self.config:
-                hpmap.update({'load_checkpoint': self.load_checkpoint})
-        elif algo_handle == 'compressor':
+        if algo_handle == 'vqvae':
             hpmap.update({
                 # training
                 'max_lr': self.config['max_lr'],
