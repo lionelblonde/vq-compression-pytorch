@@ -5,12 +5,12 @@
 The repository contains PyTorch implementations of VQ-(V)AE
 (the "V" is dropped because we model the compressor as
 a _non-variational_ autoencoder)
-to use on earth observation data from the BigEarthNet dataset.
+to use on earth observation data from the [BigEarthNet dataset](https://bigearth.net/).
 This dataset has been introduced as a benchmark
 for multi-label classification (although the labels are irrelevant here)
 on earth observations, in the context of remote sensing.
 The dataset is a collection of currated samples
-originating from the Sentinel-2 data source.
+originating from the [Sentinel-2](https://en.wikipedia.org/wiki/Sentinel-2) data source.
 The goal of the model consists in learning to compress earth observations
 in as few bits as possible.
 
@@ -53,6 +53,8 @@ pip install pytorch torchvision
 
 ## TODO's
 
-[] - Provide the option to use Residual VQ (from the Soundcore paper,
-which proposes to employ several quantizers to reccursively quantize
-what's encoded, organized in a hierarchical fashion)
+- [] Provide the option to use Residual VQ
+     (from the [SoundStream paper](http://arxiv.org/abs/2107.03312),
+     which proposes to employ several quantizers to reccursively quantize
+     what's encoded, organized in a hierarchical fashion)
+
