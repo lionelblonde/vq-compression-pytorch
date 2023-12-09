@@ -6,6 +6,8 @@ from algos.compression.models import EncoderModel, DecoderModel
 from algos.compression.quantizers import VectorQuantizer
 from algos.compression.histograms import Histogram
 
+from vector_quantize_pytorch import ResidualVQ  # TODO: use this to integrate ResidualVQ
+
 
 class VectorQuantizationAutoEncoder(nn.Module):
 
