@@ -54,7 +54,7 @@ pip install pytorch torchvision
 
 ## TODO's
 
-[] - Provide the option to use Residual VQ (from the SoundStream paper,
+- [] Provide the option to use Residual VQ (from the SoundStream paper,
 which proposes to employ several quantizers to reccursively quantize
 what's encoded, organized in a hierarchical fashion)
-    [] - Test out the integrated Residual VQ (debug+benchmark)
+    - [] Test out the integrated Residual VQ (debug+benchmark)
