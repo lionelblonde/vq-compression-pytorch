@@ -5,10 +5,9 @@ import torch.nn.functional as func
 
 class VectorQuantizer(nn.Module):
 
-    def __init__(self, hps, device):
+    def __init__(self, hps):
         super().__init__()
         self.hps = hps
-        self.device = device
         self.use_vqvae_internals = False  # we don't care much about the original vqvae internals > posterity
         self.commitment_cost = 0.25  # only used if using the vq loss from the vqvae original paper
         # Create the embedding, with number and embeddings and embedding dimensions as parameters
@@ -49,7 +48,8 @@ class VectorQuantizer(nn.Module):
 
         # Create the encodings from the obtained encoding indices (closest vectors from embedding)
         encoding_indices = encoding_indices.unsqueeze(dim=1)  # this has size [BxHxW, 1]
-        encodings = torch.zeros(encoding_indices.shape[0], self.hps.c_num).to(self.device)   # this has size [BxHxW, D]
+        encodings = torch.zeros(encoding_indices.shape[0], self.hps.c_num).to(self.hps.device)
+        # this above has size [BxHxW, D]
         encodings.scatter_(1, encoding_indices, 1)  # scatter is the reverse operation of gather
         # the operation does not change the size; encodings still has size [BxHxW, D]
 

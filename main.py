@@ -50,15 +50,11 @@ def run(args):
 
     if args.algo_handle == 'compressor':
         algo_class_handle = Compressor
-        num_transforms = 1
-        with_labels = False
-        knn_eval = False
     else:
         raise NotImplementedError("algorithm not covered")
 
     def algo_wrapper():
         return algo_class_handle(
-            device=device,
             hps=args,
         )
 
@@ -67,7 +63,6 @@ def run(args):
         args=args,
         algo_wrapper=algo_wrapper,
         experiment_name=experiment_name,
-        with_labels=with_labels,
     )
 
 
