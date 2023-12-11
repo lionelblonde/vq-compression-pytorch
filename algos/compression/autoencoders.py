@@ -21,7 +21,7 @@ class VectorQuantizationAutoEncoder(nn.Module):
         self.hps.num_quantizers = 8
         self.hps.quantize_dropout = False
         self.hps.codebook_size = 100
-        self.hps.kmeans_iter = 100
+        self.hps.kmeans_iters = 100
         self.hps.threshold_ema_dead_code = 2
         self.hps.learnable_codebook = False
 
@@ -50,7 +50,21 @@ class VectorQuantizationAutoEncoder(nn.Module):
 
     def forward(self, x):
         z = self.encoder(x)
-        qz, vq_loss, perplexity, encoding_indices, normalized_proximities = self.vector_quantizer(z)
+
+        if self.hps.residual_vq:
+            z = z.permute(0, 2, 3, 1)
+            sh = z.shape
+            z = z.view(-1, sh[1] * sh[2], sh[3])
+            qz, _, _ = self.vector_quantizer(z)
+            qz = qz.permute(0, 2, 1)
+            qz = qz.view(-1, sh[3], sh[1], sh[2])
+            vq_loss = None
+            perplexity = None
+            encoding_indices = None
+            normalized_proximities = None
+        else:
+            qz, vq_loss, perplexity, encoding_indices, normalized_proximities = self.vector_quantizer(z)
+
         recon_x = self.decoder(qz)
         return recon_x, vq_loss, perplexity, encoding_indices, normalized_proximities
 
