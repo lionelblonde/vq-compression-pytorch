@@ -27,29 +27,29 @@ The choices I made here were for my own convenience.
 
 ## Requirements
 
+GDAL: might need to install `gdal` and/or `libgdal` on your system.
+Has proven finicky to install.
+
 Python version: >=3.10
 
 Set up your Python environment as follows (prefered way; Dockerfile provided too):
 ```bash
-conda install -c conda-forge gdal
 pip install --upgrade pip
-pip install rasterio
-pip install opencv-python
-pip install tqdm
-pip install numpy
-pip install scikit-learn
-pip install wandb
-pip install tmuxp
-pip install tabulate
-pip install vector-quantize-pytorch
+conda install -c conda-forge gdal
+pip install rasterio opencv-python tqdm numpy scikit-learn wandb tmuxp tabulate
 ```
 PyTorch __with__ GPU support (_preferred_):
 ```bash
-pip install pytorch torchvision pytorch-cuda=11.8 -c pytorch -c nvidia
+conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
 ```
 PyTorch __without__ GPU support:
 ```bash
-pip install pytorch torchvision
+conda install pytorch torchvision torchaudio cpuonly -c pytorch
+```
+
+Finally (keep this last), install lucidrains' vector quantization lib:
+```bash
+pip install vector-quantize-pytorch
 ```
 
 ## TODO's
