@@ -56,6 +56,8 @@ class Spawner(object):
             'fine_tuning',
             'lars',
             'sched',
+            'learnable_codebook',
+            'quantize_dropout',
         ]
 
         if self.args.deployment == 'slurm':
@@ -136,11 +138,20 @@ class Spawner(object):
             'dataset_handle': self.config['dataset_handle'],
             'data_path': self.data_path,  # assembled earlier here
 
+            # model architecture
+            'in_channels': self.config['in_channels'],
+            'z_channels': self.config['z_channels'],
+            'ae_hidden': self.config['ae_hidden'],
+            'ae_resblocks': self.config['ae_resblocks'],
+            'ae_kernel': self.config['ae_kernel'],
+            'dsf': self.config['dsf'],
+
             # training
             'epochs': self.config['epochs'],
             'batch_size': self.config['batch_size'],
             'save_freq': self.config['save_freq'],
             'eval_every': self.config['eval_every'],
+            'max_lr': self.config['max_lr'],
 
             # opt
             'lr': self.config['lr'],
@@ -152,32 +163,27 @@ class Spawner(object):
 
             # algo
             'algo_handle': self.config['algo_handle'],
+
+            # loss
+            'alpha': self.config['alpha'],
+            'beta': self.config['beta'],
+
+            # centers
+            'c_num': self.config['c_num'],
+            'c_min': self.config['c_min'],
+            'c_max': self.config['c_max'],
         }
         if 'truncate_at' in self.config:
             hpmap.update({'truncate_at': self.config['truncate_at']})
 
-        algo_handle = hpmap['algo_handle']
-        if algo_handle == 'vqvae':
+        if 'residual' in self.config['algo_handle']:
             hpmap.update({
-                # training
-                'max_lr': self.config['max_lr'],
-                # model architecture
-                'in_channels': self.config['in_channels'],
-                'z_channels': self.config['z_channels'],
-                'ae_hidden': self.config['ae_hidden'],
-                'ae_resblocks': self.config['ae_resblocks'],
-                'ae_kernel': self.config['ae_kernel'],
-                'dsf': self.config['dsf'],
-                # loss
-                'alpha': self.config['alpha'],
-                'beta': self.config['beta'],
-                # centers
-                'c_num': self.config['c_num'],
-                'c_min': self.config['c_min'],
-                'c_max': self.config['c_max'],
+                # residualvqae
+                'num_quantizers': self.config['num_quantizers'],
+                'codebook_size': self.config['codebook_size'],
+                'kemans_iters': self.config['kemans_iters'],
+                'threshold_ema_dead_code': self.config['threshold_ema_dead_code'],
             })
-        else:
-            raise ValueError(f"invalid algo handle: {algo_handle}!")
 
         if self.args.sweep:
             # Random search: replace some entries with random values

@@ -24,7 +24,6 @@ def learn(
     args,
     algo_wrapper,
     experiment_name,
-    with_labels,
 ):
 
     # Create context manager that records the time taken by encapsulated ops

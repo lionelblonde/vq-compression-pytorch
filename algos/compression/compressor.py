@@ -27,8 +27,7 @@ DEBUG = bool(debug_lvl >= 2)
 
 class Compressor(object):
 
-    def __init__(self, device, hps):
-        self.device = device
+    def __init__(self, hps):
         self.hps = hps
 
         self.iters_so_far = 0
@@ -37,7 +36,7 @@ class Compressor(object):
         if self.hps.clip_norm <= 0:
             logger.info(f"clip_norm={self.hps.clip_norm} <= 0, hence disabled.")
 
-        self.model = VectorQuantizationAutoEncoder(hps=self.hps, device=self.device)
+        self.model = VectorQuantizationAutoEncoder(hps=self.hps).to(self.hps.device)
 
         self.criteria = self.model.loss_func  # contains several losses
 
@@ -94,9 +93,9 @@ class Compressor(object):
         for i, (t_x, v_x) in enumerate(agg_iterable):
 
             if self.hps.cuda:
-                t_x = t_x.pin_memory().to(self.device, non_blocking=True)
+                t_x = t_x.pin_memory().to(self.hps.device, non_blocking=True)
             else:
-                t_x = t_x.to(self.device)
+                t_x = t_x.to(self.hps.device)
 
             with self.ctx:
                 t_metrics, t_loss, _ = self.compute_loss(t_x)
@@ -124,9 +123,9 @@ class Compressor(object):
                 with torch.no_grad():
 
                     if self.hps.cuda:
-                        v_x = v_x.pin_memory().to(self.device, non_blocking=True)
+                        v_x = v_x.pin_memory().to(self.hps.device, non_blocking=True)
                     else:
-                        v_x = v_x.to(self.device)
+                        v_x = v_x.to(self.hps.device)
 
                     with self.ctx:
                         v_metrics, _, _ = self.compute_loss(v_x)
@@ -149,9 +148,9 @@ class Compressor(object):
             for i, x in enumerate(tqdm(dataloader)):
 
                 if self.hps.cuda:
-                    x = x.pin_memory().to(self.device, non_blocking=True)
+                    x = x.pin_memory().to(self.hps.device, non_blocking=True)
                 else:
-                    x = x.to(self.device)
+                    x = x.to(self.hps.device)
 
                 with self.ctx:
                     metrics, _, table = self.compute_loss(x)
