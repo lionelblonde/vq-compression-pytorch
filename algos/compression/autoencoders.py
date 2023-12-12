@@ -15,19 +15,10 @@ class VectorQuantizationAutoEncoder(nn.Module):
         super().__init__()
         self.hps = hps
 
-        # XXX: this is temporary
-        self.hps.residual_vq = True
-        self.hps.num_quantizers = 8
-        self.hps.quantize_dropout = False
-        self.hps.codebook_size = 100
-        self.hps.kmeans_iters = 100
-        self.hps.threshold_ema_dead_code = 2
-        self.hps.learnable_codebook = False
-
         self.encoder = EncoderModel(self.hps)
         self.decoder = DecoderModel(self.hps)
 
-        if self.hps.residual_vq:
+        if 'residual' in self.hps.algo_handle:
             # this follows algo 1 in the SoundStream paper
             self.vector_quantizer = ResidualVQ(
                 # args specific to the residual extension
@@ -51,7 +42,7 @@ class VectorQuantizationAutoEncoder(nn.Module):
     def forward(self, x):
         z = self.encoder(x)
 
-        if self.hps.residual_vq:
+        if 'residual' in self.hps.algo_handle:
             z = z.permute(0, 2, 3, 1)
             sh = z.shape
             z = z.view(-1, sh[1] * sh[2], sh[3])
@@ -75,7 +66,7 @@ class VectorQuantizationAutoEncoder(nn.Module):
         losses = defaultdict()
         losses['recon_error'] = recon_error
         loss = recon_error
-        if not self.hps.residual_vq:
+        if 'residual' not in self.hps.algo_handle:
             losses['vq_loss'] = vq_loss
             loss = recon_error + vq_loss
 

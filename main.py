@@ -48,7 +48,7 @@ def run(args):
     else:
         raise NotImplementedError("dataset not covered")
 
-    if args.algo_handle == 'compressor':
+    if args.algo_handle in ['vqae', 'residualvqae']:
         algo_class_handle = Compressor
     else:
         raise NotImplementedError("algorithm not covered")

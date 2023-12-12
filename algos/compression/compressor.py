@@ -36,7 +36,7 @@ class Compressor(object):
         if self.hps.clip_norm <= 0:
             logger.info(f"clip_norm={self.hps.clip_norm} <= 0, hence disabled.")
 
-        self.model = VectorQuantizationAutoEncoder(hps=self.hps, device=self.hps.device)
+        self.model = VectorQuantizationAutoEncoder(hps=self.hps).to(self.hps.device)
 
         self.criteria = self.model.loss_func  # contains several losses
 

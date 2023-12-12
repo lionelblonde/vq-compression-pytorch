@@ -28,7 +28,7 @@ lars: true
 sched: true
 
 # algo
-algo_handle: 'vqvae'
+algo_handle: 'residualvqae'
 
 # opt 2
 max_lr: 1e-3
@@ -49,3 +49,12 @@ beta: 1.
 c_num: 8
 c_min: -2.
 c_max: 2.
+
+# residualvq
+num_quantizers: 8
+quantize_dropout: true
+codebook_size: 100
+kmeans_iters: 100
+threshold_ema_dead_code: 2
+learnable_codebook: false
+

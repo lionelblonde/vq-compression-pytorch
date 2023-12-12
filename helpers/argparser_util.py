@@ -101,7 +101,7 @@ def agg_argparser():
     # algo
     parser.add_argument(
         "--algo_handle", type=str,
-        choices=['compressor'],
+        choices=['vqae', 'residualvqae'],
         default=None,
     )
     parser.add_argument(
@@ -117,7 +117,7 @@ def agg_argparser():
         help="channels in the latent z",
     )
     parser.add_argument(
-        "--ae_hidden", type=int, default=128,
+        "--ae_hidden", type=int, default=32,
         help="channels in hid layers in enc/dec.",
     )
     parser.add_argument(
@@ -129,7 +129,7 @@ def agg_argparser():
         help="size of kernel in down/up-sampling layers",
     )
     parser.add_argument(
-        "--dsf", type=int, choices=[8, 4, 2, 1], default=8,
+        "--dsf", type=int, choices=[8, 4, 2, 1], default=4,
         help="downsampling factor (1=no downsampling)",
     )
     parser.add_argument(
@@ -151,6 +151,25 @@ def agg_argparser():
     parser.add_argument(
         "--c_max", type=float, default=2.,
         help="initial max value of centers",
+    )
+    # residualvqae
+    parser.add_argument(
+        "--num_quantizers", type=int, default=8,
+    )
+    boolean_flag(
+        parser, "quantize_dropout", default=False,
+    )
+    parser.add_argument(
+        "--codebook_size", type=int, default=100,
+    )
+    parser.add_argument(
+        "--kmeans_iters", type=int, default=100,
+    )
+    parser.add_argument(
+        "--threshold_ema_dead_code", type=int, default=2,
+    )
+    boolean_flag(
+        parser, "learnable_codebook", default=False,
     )
 
     return parser
