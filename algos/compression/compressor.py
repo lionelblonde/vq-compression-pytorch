@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 import itertools
 from contextlib import nullcontext
-
+from typing import Any
 from tqdm import tqdm
 
 import wandb
@@ -101,7 +101,9 @@ class Compressor(object):
                 t_metrics, t_loss, _ = self.compute_loss(t_x)
                 t_loss /= self.hps.acc_grad_steps
 
-            self.scaler.scale(t_loss).backward()
+            t_loss: Any = self.scaler.scale(t_loss)  # silly trick to bypass broken
+            # torch.cuda.amp type hints (issue: https://github.com/pytorch/pytorch/issues/108629)
+            t_loss.backward()
 
             if ((i + 1) % self.hps.acc_grad_steps == 0) or (i + 1 == len(train_dataloader)):
 
