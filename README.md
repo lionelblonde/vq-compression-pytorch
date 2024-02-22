@@ -32,7 +32,7 @@ Has proven finicky to install.
 
 Python version: >=3.10
 
-Set up your Python environment as follows (prefered way; Dockerfile provided too):
+Set up your Python environment as follows (ordering is important):
 ```bash
 pip install --upgrade pip
 conda install -c conda-forge gdal
